@@ -29,6 +29,35 @@ eval stage_sigma3 11
 eval stage_sigma4 12
 
 
+// Header edits
+{savepc}
+	// Change SRAM size to 256 KB
+	{reorg $80FFD8}
+	db $08
+{loadpc}
+
+
+// Disable protection routines (needed because we add SRAM)
+{savepc}
+	{reorg $81816F}
+	lda.b #$01
+	nop
+	nop
+	{reorg $81852A}
+	lda.b #$01
+	nop
+	nop
+	{reorg $849D0B}
+	lda.b #$01
+	nop
+	nop
+	{reorg $84A471}
+	lda.b #$01
+	nop
+	nop
+{loadpc}
+
+
 // Stage select hack
 {savepc}
 	{reorg $80BFED}
