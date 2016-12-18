@@ -18,7 +18,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 1
 eval version_minor 2
-eval version_revision 1
+eval version_revision 2
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -38,6 +38,7 @@ eval controller_2_new $7E00B1
 eval screen_control_shadow $7E00B3
 eval nmi_control_shadow $7E00C2
 eval hdma_control_shadow $7E00C3
+eval rng_value $7E0BA6
 eval state_vars $7E1F70
 eval current_level $7E1F7A
 eval life_count $7E1F80
@@ -881,11 +882,18 @@ nmi_hook:
 	dw $1000 | $4200, $00
 	// Single address, A bus -> B bus.  B address = reflector to WRAM ($2180).
 	dw $0000 | $4310, $8000  // direction = A->B, B addr = $2180
-	// Copy SRAM 710000-717FFF to WRAM 7E0000-7E7FFF.
+	// Copy SRAM 710000-710BA5 to WRAM 7E0000-7E0BA5.  (skipping rng_value = 7E0BA6-7E0BA7)
 	dw $0000 | $4312, $0000  // A addr = $xx0000
-	dw $0000 | $4314, $0071  // A addr = $71xxxx, size = $xx00
-	dw $0000 | $4316, $0080  // size = $80xx ($8000), unused bank reg = $00.
+	dw $0000 | $4314, $A671  // A addr = $71xxxx, size = $xxA6
+	dw $0000 | $4316, $000B  // size = $0Bxx ($0BA6), unused bank reg = $00.
 	dw $0000 | $2181, $0000  // WRAM addr = $xx0000
+	dw $1000 | $2183, $00    // WRAM addr = $7Exxxx  (bank is relative to $7E)
+	dw $1000 | $420B, $02    // Trigger DMA on channel 1
+	// Copy SRAM 710BA8-717FFF to WRAM 7E0BA8-7E7FFF.  (skipping rng_value = 7E0BA6-7E0BA7)
+	dw $0000 | $4312, $0BA8  // A addr = $xx0BA8
+	dw $0000 | $4314, $5871  // A addr = $71xxxx, size = $xx58
+	dw $0000 | $4316, $0074  // size = $74xx ($7458), unused bank reg = $00.
+	dw $0000 | $2181, $0BA8  // WRAM addr = $xx0BA8
 	dw $1000 | $2183, $00    // WRAM addr = $7Exxxx  (bank is relative to $7E)
 	dw $1000 | $420B, $02    // Trigger DMA on channel 1
 	// Copy SRAM 720000-727FFF to WRAM 7E8000-7EFFFF.
