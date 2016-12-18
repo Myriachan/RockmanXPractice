@@ -15,6 +15,10 @@ define loadpc pull base, origin
 incbin "Rockman X (J) (V1.0) [!].smc"
 
 
+// Version tags
+eval version_major 1
+eval version_minor 2
+eval version_revision 0
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -24,6 +28,7 @@ eval stage_sigma4 12
 eval magic_sram_tag_lo $5550  // Combined, these say "PURR"
 eval magic_sram_tag_hi $5252
 // RAM addresses
+eval title_screen_option $7E003C
 eval controller_1_current $7E00A7
 eval controller_1_unknown $7E00A9
 eval controller_1_unknown2 $7E00AB
@@ -270,16 +275,72 @@ stage_select_inverse_y:
 	db 1, 0, 3, 1, 1, 2, 3, 2, 0, 0, 0, 3, 3
 {loadpc}
 
-// Change "Game Start" to "Practice"
+// Title screen text edits:
+// Add "Practice Edition".
+// Change "Game Start" to "Practice".
+// Remove "Password".
 {savepc}
-	{reorg $86934D}
-	db "PRACTICE   "
-	{reorg $869379}
-	db "PRACTICE   "
-	{reorg $8693A5}
-	db "PRACTICE   "
+	{reorg $869349}
+patch_main_menu_text:
+	macro optionset label, attrib1, attrib2
+		db .edition_{label}_end - .edition_{label}_begin, $2C
+		dw $138E >> 1
+	.edition_{label}_begin:
+		db "- Practice Edition -"
+	.edition_{label}_end:
+
+		db .option1_{label}_end - .option1_{label}_begin, {attrib1}
+		dw $1514 >> 1
+	.option1_{label}_begin:
+		db "PRACTICE"
+	.option1_{label}_end:
+
+		db .option2_{label}_end - .option2_{label}_begin, {attrib2}
+		dw $1614 >> 1
+	.option2_{label}_begin:
+		db "OPTION MODE"
+	.option2_{label}_end:
+	endmacro
+
+.optionset1:
+	{optionset s1, $24, $20}
+	db 0
+.optionset2:
+	{optionset s2, $20, $24}
+	db 0
+
+	{reorg $86912B}
+	dw .optionset1
+	dw .optionset1
+	dw .optionset2
 {loadpc}
 
+// Change intro text =^-^=
+{savepc}
+	{reorg $84CE10}
+	db "ROCKMAN X PRACTICE EDITION"
+	db $80, $87, $0A
+	db "Ver. "
+	db $30 + {version_major}, '.', $30 + {version_minor}, $30 + {version_revision}
+	db "   "
+	{reorg $84CE4B}
+	db "2014-2016     "
+	{reorg $84CE5C}
+	db "Myria and Total"
+{loadpc}
+
+// Make the useless hidden "PASS WORD" option unavailable.
+{savepc}
+	// The original code handles both Up and Down button presses on the title
+	// screen separately, obviously.  But we only have two options, indexes 0
+	// and 2, so we can just XOR by 2.  Note that Select is treated as Down.
+	{reorg $80925C}
+	bit.b #$2C
+	beq $80928B
+	lda.b {title_screen_option}
+	eor.b #$02
+	bra $809276
+{loadpc}
 
 // Make "ESCAPE.U" always work
 {savepc}
