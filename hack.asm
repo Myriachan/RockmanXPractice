@@ -18,7 +18,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 1
 eval version_minor 2
-eval version_revision 0
+eval version_revision 1
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -373,6 +373,72 @@ escape_u_hack:
 {loadpc}
 
 
+// Make the four corners of stage select all be Sigma.
+// stage_select_render_hook later in this file puts the numbers 1-4 on top
+// of the Sigma icons.
+{savepc}
+	// Redirect tilemaps for Stage/Map/Spec at those for Sigma icon.
+	{reorg $869B00 + 4}
+	dw $E990
+	{reorg $869B07 + 4}
+	dw $E990
+	{reorg $869B0E + 4}
+	dw $E990
+	{reorg $869B15 + 4}
+	dw $E990
+	{reorg $869B1C + 4}
+	dw $E990
+	{reorg $869B23 + 4}
+	dw $E990
+
+	// Show Storm Eagle's stage picture as his "alive" state.  We need this
+	// because the state of RAM at this point is him dead.
+	{reorg $869B7E + 4}
+	dw $E510
+
+	// Always show Sigma in lower right, and switch palette from Rockman X
+	// to the Sigma icon palette.
+	{reorg $80BDC5}
+	nop
+	nop
+
+	// Show Sigma even though "show Sigma" flag in RAM is clear.
+	{reorg $80C10C}
+	nop
+	nop
+
+	// When highlighting the corners, show Sigma in the middle.
+	// When highlighting the middle, show the city.
+	{reorg $869BE3}
+	db $12, $0A, $10, $12
+	db $0D, $07, $07, $0E
+	db $0F, $07, $07, $11
+	db $12, $0B, $0C, $12
+
+	// Palette map table for the same.
+	{reorg $869C13}
+	db $6F, $67, $6C, $6F
+	db $68, $C8, $C8, $6A
+	db $6B, $C8, $C8, $6E
+	db $6F, $6D, $69, $6F
+
+	// The indexes above are double before calling $828011, but this doubling
+	// is done as 8-bit.  We need the full 16-bit result in order to get the
+	// "city" palette working.
+	{reorg $80C131}
+	jmp palette_multiply_hack
+
+	// Same hack, but for when returning to the character selection screen
+	// from within a stage.
+	{reorg $80BDFF}
+	// JSR instead of JMP because we don't RTS right afterward.
+	jsr palette_multiply_hack
+	nop
+	nop
+	nop
+{loadpc}
+
+
 // Added code/data
 {reorg $80FBD0}
 
@@ -382,7 +448,7 @@ state_vars_per_level:
 	//db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 \
 	//db $02,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00  > True values. Not using so doesn't repeat.
 	//db $00,$00,$00,$00,$00,$00,$00,$00,$DC,$00,$10,$00,$00,$00,$00,$00 /
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$08,$00,$00,$00,$00,$00
+	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 	db $02,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 	db $00,$00,$00,$00,$00,$00,$00,$00,$DC,$00,$10,$04,$00,$00,$00,$00
 	// Launch Octopus
@@ -443,6 +509,64 @@ state_vars_armadillo_ex:
 	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$03,$00,$40,$00,$01,$00
 	db $03,$00,$01,$8E,$8E,$8E,$00,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
 	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$DF,$20,$04,$FF,$00,$00,$00
+
+// Hook end of stage select BG3 tilemap rendering so we can change the stage select screen.
+{savepc}
+	{reorg $80B2F8}
+	// jmp instead of jml because our code is in the same bank.
+	jmp stage_select_render_hook
+{loadpc}
+stage_select_render_hook:
+	// At entry, A = 8-bit, X/Y = 16-bit.
+	// Deleted code
+	stx.b $F8
+	stz.b $F4
+	// Is this rendering from bank A2?
+	// "A" register destroyed by original code when we return.
+	lda.b $F5 + 2
+	cmp.b #$A2
+	bne .not_stage_select
+	// Did this just render the BG3 tilemap of stage select?
+	lda.b $F5 + 0
+	ora.b $F5 + 1
+	bne .not_stage_select
+	// A2:C672 = end of compressed BG3 stage select tilemap.
+	cpy.w #$C672
+	bne .not_stage_select
+
+	// OK, this is what we wanted to hook.
+	// NOTE: We don't need to restore A back to 8-bit, because 8080F8 does sep #$30.
+	rep #$20
+	lda.w #$3431     // ASCII character "1"
+	sta.l $7F0190
+	inc
+	sta.l $7F01B4
+	inc
+	sta.l $7F0610
+	inc
+	sta.l $7F0634
+
+.not_stage_select:
+	// jmp instead of jml because our code is in the same bank.
+	jmp $8080F8
+
+
+// The indexes above are double before calling $828011, but this doubling
+// is done as 8-bit.  We need the full 16-bit result in order to get the
+// "city" palette working.
+palette_multiply_hack:
+	// Switch to 16-bit for this.
+	rep #$30
+	// The high byte of A is set to random crap at this point.
+	and.w #$00FF
+	// Double here and put into Y.
+	asl
+	tay
+	// Call the routine, then return ourselves (we were jumped to, not called).
+	jsl $828011
+	// Need to set A/X/Y back to 8-bit before we return, though.
+	sep #$30
+	rts
 
 
 // Saved state hacks
