@@ -94,6 +94,23 @@ eval sram_size $080000
 {loadpc}
 
 
+// Disable interstage password screen.
+{savepc}
+	// Always use password screen state 3, which is used to exit to stage select.
+	// States are offsets into a jump table, so they're multiplied by 2.
+	{reorg $80EFC2}
+	ldx.b #3 * 2
+{loadpc}
+
+
+// Disable ending - return to stage select after Sigma 4.
+{savepc}
+	// Make check for completing Sigma 4 fail.
+	{reorg $809C01}
+	bra $809C06
+{loadpc}
+
+
 // Stage select hack
 {savepc}
 	{reorg $80BFED}
