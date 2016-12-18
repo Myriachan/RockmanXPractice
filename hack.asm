@@ -136,7 +136,7 @@ stage_choice_hack:
 	// Special-case holding select.
 	// Check whether select is being held.
 	tax
-	lda.w {controller_1_unknown}
+	lda.w {controller_1_unknown}+1
 	and.b #$20
 	beq .not_holding_select
 
