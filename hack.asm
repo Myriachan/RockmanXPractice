@@ -65,6 +65,7 @@ eval sram_size $080000
 
 
 // Disable protection routines (needed because we add SRAM)
+// Thanks to devin of The Cutting Room Floor for documenting these checks.
 {savepc}
 	{reorg $81816F}
 	lda.b #$01
@@ -82,6 +83,14 @@ eval sram_size $080000
 	lda.b #$01
 	nop
 	nop
+{loadpc}
+
+
+// Disable stage intros.
+{savepc}
+	// bne 9597 -> bra 9597
+	{reorg $8095A2}
+	bra $809597
 {loadpc}
 
 
