@@ -30,9 +30,11 @@ eval magic_sram_tag_hi $5252
 // RAM addresses
 eval title_screen_option $7E003C
 eval controller_1_current $7E00A7
-eval controller_1_unknown $7E00A9
-eval controller_1_unknown2 $7E00AB
-eval controller_1_new_presses $7E00AD
+eval controller_1_previous $7E00A9
+eval controller_1_new $7E00AB
+eval controller_2_current $7E00AD
+eval controller_2_previous $7E00AF
+eval controller_2_new $7E00B1
 eval screen_control_shadow $7E00B3
 eval nmi_control_shadow $7E00C2
 eval hdma_control_shadow $7E00C3
@@ -45,6 +47,7 @@ eval spc_state_shadow $7EFFFE
 // ROM addresses
 eval rom_play_sound $8088B6
 eval rom_nmi_after_pushes $808173
+eval rom_nmi_after_controller $8081C4
 // SRAM addresses for saved states
 eval sram_start $700000
 eval sram_wram_7E0000 $710000
@@ -58,6 +61,7 @@ eval sram_dma_bank $770000
 eval sram_validity $774000
 eval sram_saved_sp $774004
 eval sram_vm_return $774006
+eval sram_previous_command $774008
 eval sram_size $080000
 
 
@@ -66,6 +70,13 @@ eval sram_size $080000
 	// Change SRAM size to 256 KB
 	{reorg $80FFD8}
 	db $08
+{loadpc}
+
+
+// Init hook
+{savepc}
+	{reorg $808012}
+	jml init_hook
 {loadpc}
 
 
@@ -136,7 +147,7 @@ stage_choice_hack:
 	// Special-case holding select.
 	// Check whether select is being held.
 	tax
-	lda.w {controller_1_unknown}+1
+	lda.w {controller_1_current}+1
 	and.b #$20
 	beq .not_holding_select
 
@@ -436,38 +447,72 @@ state_vars_armadillo_ex:
 
 // Saved state hacks
 {savepc}
-	{reorg $80FFA4}
+	//{reorg $80FFA4}
+	{reorg $8081AB}
 	jml nmi_hook
 {loadpc}
 
 {reorg $84EE00}
+// Called at program startup.
+init_hook:
+	// Deleted code.
+	sta.l $7EFFFF
+	// What we need to do at startup.
+	sta.l {sram_previous_command}
+	sta.l {sram_previous_command}+1
+	// Return to original code.
+	jml $808016
+
+// Called during NMI.
 nmi_hook:
+	// Deleted code.
+	lda.b {controller_1_current}
+	sta.b {controller_1_previous}
 
-	// Rather typical NMI prolog code - same as real one.
-	rep #$38
-	pha
-	phx
-	phy
-	phd
-	phb
-	lda.w #$0000
-	tcd
+	// Read controller port.  This is optimized from the original slightly.
+	lda.w $4218
+	bit.w #$000F
+	beq .controller_valid
+	lda.w #0
+.controller_valid:
 
-	// Don't interfere with NMI as much as possible.
-	// Only execute when select is pressed.
+	// Update controller variables.
+	sta.b {controller_1_current}
+	eor.b {controller_1_previous}
+	and.b {controller_1_current}
+	sta.b {controller_1_new}
+
+	// Check for Select being held.
 	lda.b {controller_1_current}
 	bit.w #$2000
 	beq .return_normal_no_rep
 
-	// Mask controller.
-	bit.b {controller_1_unknown2}
-	beq .return_normal_no_rep
+	// Check for L or R newly being pressed.
+	lda.b {controller_1_new}
+	and.w #$0030
 
-	// Check for Select + R.
-	and.w #$2030
-	cmp.w #$2010
+	// We now can execute slow code, because we know that the player is giving
+	// us a command to do.
+
+	// This is a command to us, so we want to hide the button press from the game.
+	tax
+	lda.w #$FFCF
+	and.b {controller_1_current}
+	sta.b {controller_1_current}
+	lda.w #$FFCF
+	and.b {controller_1_new}
+	sta.b {controller_1_new}
+	txa
+
+	// We need to suppress repeating ourselves when L or R is held down.
+	cmp.l {sram_previous_command}
+	beq .return_normal_no_rep
+	sta.l {sram_previous_command}
+
+	// Distinguish between the cases.
+	cmp.w #$0010
 	beq .select_r
-	cmp.w #$2020
+	cmp.w #$0020
 	bne .return_normal_no_rep
 	jmp .select_l
 
@@ -475,7 +520,7 @@ nmi_hook:
 .return_normal:
 	rep #$38
 .return_normal_no_rep:
-	jml {rom_nmi_after_pushes}
+	jml {rom_nmi_after_controller}
 
 // Play an error sound effect.
 .error_sound_return:
@@ -665,21 +710,13 @@ nmi_hook:
 	lda.b {screen_control_shadow}
 	sta.w $2100
 
-	// Copy SPC state to SPC state shadow, or the game gets confused.
+	// Copy actual SPC state to shadow SPC state, or the game gets confused.
 	lda.w $2142
 	sta.l {spc_state_shadow}
 
-	// Wait for V-blank to end then start again.
-//.nmi_wait_loop_set:
-//	lda.w $4212
-//	bmi .nmi_wait_loop_set
-//.nmi_wait_loop_clear:
-//	lda.w $4212
-//	bpl .nmi_wait_loop_clear
-
+	// Return to the game's NMI handler.
 	rep #$38
-	jml {rom_nmi_after_pushes}   // Jump to normal NMI handler, skipping the
-	                             // prolog code, since we already did it.
+	jml {rom_nmi_after_controller}
 
 // Select and L pushed = load.
 .select_l:
@@ -785,15 +822,7 @@ nmi_hook:
 	plb
 	plb
 
-	// Rewrite inputs in ram to reflect the loading inputs and not saving inputs
-	lda.b {controller_1_current}
-	eor.w #$2010
-	ora.w #$2020
-	sta.b {controller_1_unknown}
-	sta.b {controller_1_current}
-	sta.b {controller_1_unknown2}
-
-	// Load DMA from SRAM
+	// Load DMA registers' state from SRAM.
 	ldy.w #0
 	ldx.w #0
 
