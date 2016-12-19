@@ -547,9 +547,35 @@ stage_select_render_hook:
 	inc
 	sta.l $7F0634
 
+	phx
+	phy
+	ldx.w #0
+.string_loop:
+	lda.l .stage_select_text_begin, x
+	tay
+	txa
+	asl
+	tax
+	tya
+	and.w #$00FF
+	ora.w #$3400
+	sta.l $7F06C8, x
+	txa
+	lsr
+	tax
+	inx
+	cpx.w #.stage_select_text_end - .stage_select_text_begin
+	bne .string_loop
+	ply
+	plx
+
 .not_stage_select:
 	// jmp instead of jml because our code is in the same bank.
 	jmp $8080F8
+
+.stage_select_text_begin:
+	db "HOLD SELECT FOR REVISITS"
+.stage_select_text_end:
 
 
 // The indexes above are double before calling $828011, but this doubling
