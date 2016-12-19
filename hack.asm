@@ -18,7 +18,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 1
 eval version_minor 2
-eval version_revision 2
+eval version_revision 3
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
