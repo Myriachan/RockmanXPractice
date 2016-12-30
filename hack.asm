@@ -18,7 +18,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 1
 eval version_minor 2
-eval version_revision 4
+eval version_revision 5
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -46,6 +46,8 @@ eval reached_midpoint $7E1F81
 eval weapon_power $7E1F87
 eval intro_completed $7E1F9B
 eval spc_state_shadow $7EFFFE
+// Temporary storage for load process.  Overlaps game use.
+eval load_temporary_rng $7F0000
 // ROM addresses
 eval rom_play_sound $8088B6
 eval rom_nmi_after_pushes $808173
@@ -902,9 +904,24 @@ nmi_hook:
 	lda.b #$F1
 	sta.w $2140
 
+	// Save the RNG value to a location that gets loaded after the RNG value.
+	// This way, we preserve the RNG value into the loaded state.
+	// NOTE: Bank set to 00 above.
+	rep #$20
+	lda.w {rng_value}
+	sta.l {load_temporary_rng}
+
 	// Execute VM to do DMAs
 	ldx.w #.load_write_table
+.jmp_run_vm:
 	jmp .run_vm
+
+.load_after_7E_done:
+	// We enter with 16-bit A/X/Y.
+	// Restore the RNG value with what we saved before.
+	lda.l {load_temporary_rng}
+	sta.l {rng_value}
+	bra .jmp_run_vm
 
 // Needed to put this somewhere.
 .jmp_error_sound:
@@ -919,18 +936,11 @@ nmi_hook:
 	dw $1000 | $4200, $00
 	// Single address, A bus -> B bus.  B address = reflector to WRAM ($2180).
 	dw $0000 | $4310, $8000  // direction = A->B, B addr = $2180
-	// Copy SRAM 710000-710BA5 to WRAM 7E0000-7E0BA5.  (skipping rng_value = 7E0BA6-7E0BA7)
+	// Copy SRAM 710000-717FFF to WRAM 7E0000-7E7FFF.
 	dw $0000 | $4312, $0000  // A addr = $xx0000
-	dw $0000 | $4314, $A671  // A addr = $71xxxx, size = $xxA6
-	dw $0000 | $4316, $000B  // size = $0Bxx ($0BA6), unused bank reg = $00.
+	dw $0000 | $4314, $0071  // A addr = $71xxxx, size = $xx00
+	dw $0000 | $4316, $0080  // size = $80xx ($8000), unused bank reg = $00.
 	dw $0000 | $2181, $0000  // WRAM addr = $xx0000
-	dw $1000 | $2183, $00    // WRAM addr = $7Exxxx  (bank is relative to $7E)
-	dw $1000 | $420B, $02    // Trigger DMA on channel 1
-	// Copy SRAM 710BA8-717FFF to WRAM 7E0BA8-7E7FFF.  (skipping rng_value = 7E0BA6-7E0BA7)
-	dw $0000 | $4312, $0BA8  // A addr = $xx0BA8
-	dw $0000 | $4314, $5871  // A addr = $71xxxx, size = $xx58
-	dw $0000 | $4316, $0074  // size = $74xx ($7458), unused bank reg = $00.
-	dw $0000 | $2181, $0BA8  // WRAM addr = $xx0BA8
 	dw $1000 | $2183, $00    // WRAM addr = $7Exxxx  (bank is relative to $7E)
 	dw $1000 | $420B, $02    // Trigger DMA on channel 1
 	// Copy SRAM 720000-727FFF to WRAM 7E8000-7EFFFF.
@@ -940,6 +950,8 @@ nmi_hook:
 	dw $0000 | $2181, $8000  // WRAM addr = $xx8000
 	dw $1000 | $2183, $00    // WRAM addr = $7Exxxx  (bank is relative to $7E)
 	dw $1000 | $420B, $02    // Trigger DMA on channel 1
+	// Reload variables from 7E we didn't want to reload from SRAM.
+	dw $0000, .load_after_7E_done
 	// Copy SRAM 730000-737FFF to WRAM 7F0000-7F7FFF.
 	dw $0000 | $4312, $0000  // A addr = $xx0000
 	dw $0000 | $4314, $0073  // A addr = $73xxxx, size = $xx00
@@ -1060,4 +1072,10 @@ nmi_hook:
 	// A, X and Y are 16-bit at exit.
 	// Return to caller.  The word in the table after the terminator is the
 	// code address to return to.
-	jmp ($0002,x)
+	// X will be set to the next "instruction" in case resuming the VM
+	// is desired.
+	inx
+	inx
+	inx
+	inx
+	jmp ($FFFE,x)
