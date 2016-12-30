@@ -18,7 +18,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 1
 eval version_minor 2
-eval version_revision 5
+eval version_revision 6
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -743,8 +743,14 @@ nmi_hook:
 	cpy.b #({sram_start} + {sram_size}) >> 16
 	bne .sram_test_read_loop
 
-	// Store DMA registers' values to SRAM.
+
+	// Mark the save as invalid in case we lose power or crash while saving.
 	rep #$30
+	lda.w #0
+	sta.l {sram_validity}
+	sta.l {sram_validity} + 2
+
+	// Store DMA registers' values to SRAM.
 	ldy.w #0
 	phy
 	plb
@@ -853,16 +859,16 @@ nmi_hook:
 	plb
 	plb
 
-	// Mark the save as valid.
+	// Save stack pointer.
 	rep #$30
+	tsa
+	sta.l {sram_saved_sp}
+
+	// Mark the save as valid.
 	lda.w #{magic_sram_tag_lo}
 	sta.l {sram_validity}
 	lda.w #{magic_sram_tag_hi}
 	sta.l {sram_validity} + 2
-
-	// Save stack pointer.
-	tsa
-	sta.l {sram_saved_sp}
 
 .register_restore_return:
 	// Restore register state for return.
