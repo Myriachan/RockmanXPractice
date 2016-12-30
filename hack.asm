@@ -18,15 +18,15 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 1
 eval version_minor 2
-eval version_revision 6
+eval version_revision 7
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
 eval stage_sigma2 10
 eval stage_sigma3 11
 eval stage_sigma4 12
-eval magic_sram_tag_lo $5550  // Combined, these say "PURR"
-eval magic_sram_tag_hi $5252
+eval magic_sram_tag_lo $4143  // Combined, these say "CATS"
+eval magic_sram_tag_hi $5354
 // RAM addresses
 eval title_screen_option $7E003C
 eval controller_1_current $7E00A7
@@ -61,6 +61,7 @@ eval sram_wram_7F8000 $740000
 eval sram_vram_0000 $750000
 eval sram_vram_8000 $760000
 eval sram_cgram $772000
+eval sram_oam $772200
 eval sram_dma_bank $770000
 eval sram_validity $774000
 eval sram_saved_sp $774004
@@ -850,6 +851,13 @@ nmi_hook:
 	dw $0000 | $4314, $0077  // A addr = $77xxxx, size = $xx00
 	dw $0000 | $4316, $0002  // size = $02xx ($0200), unused bank reg = $00.
 	dw $1000 | $420B, $02    // Trigger DMA on channel 1
+	// Copy OAM 000-23F to SRAM 772200-77243F.
+	dw $0000 | $2102, $0000  // OAM address
+	dw $0000 | $4310, $3880  // direction = B->A, byte reg, B addr = $2138
+	dw $0000 | $4312, $2200  // A addr = $xx2200
+	dw $0000 | $4314, $4077  // A addr = $77xxxx, size = $xx40
+	dw $0000 | $4316, $0002  // size = $02xx ($0240), unused bank reg = $00.
+	dw $1000 | $420B, $02    // Trigger DMA on channel 1
 	// Done
 	dw $0000, .save_return
 
@@ -993,6 +1001,13 @@ nmi_hook:
 	dw $0000 | $4312, $2000  // A addr = $xx2000
 	dw $0000 | $4314, $0077  // A addr = $77xxxx, size = $xx00
 	dw $0000 | $4316, $0002  // size = $02xx ($0200), unused bank reg = $00.
+	dw $1000 | $420B, $02    // Trigger DMA on channel 1
+	// Copy SRAM 772200-77243F to OAM 000-23F.
+	dw $0000 | $2102, $0000  // OAM address
+	dw $0000 | $4310, $0400  // direction = A->B, byte reg, B addr = $2104
+	dw $0000 | $4312, $2200  // A addr = $xx2200
+	dw $0000 | $4314, $4077  // A addr = $77xxxx, size = $xx40
+	dw $0000 | $4316, $0002  // size = $02xx ($0240), unused bank reg = $00.
 	dw $1000 | $420B, $02    // Trigger DMA on channel 1
 	// Done
 	dw $0000, .load_return
