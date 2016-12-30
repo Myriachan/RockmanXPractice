@@ -18,7 +18,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 1
 eval version_minor 2
-eval version_revision 3
+eval version_revision 4
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -42,6 +42,7 @@ eval rng_value $7E0BA6
 eval state_vars $7E1F70
 eval current_level $7E1F7A
 eval life_count $7E1F80
+eval reached_midpoint $7E1F81
 eval weapon_power $7E1F87
 eval intro_completed $7E1F9B
 eval spc_state_shadow $7EFFFE
@@ -154,6 +155,8 @@ stage_choice_hack:
 
 	// Is this a level we care about?
 	txa
+	cmp.b #9  // Sigma 1
+	beq .special_sigma1
 	cmp.b #8  // Chill Penguin
 	beq .special_penguin
 	cmp.b #3  // Armored Armadillo
@@ -163,6 +166,9 @@ stage_choice_hack:
 	// Load special data since select was held.
 .special_armadillo:
 	ldx.w #state_vars_armadillo_ex
+	bra .state_vars_copy
+.special_sigma1:
+	ldx.w #state_vars_sigma1_ex
 	bra .state_vars_copy
 .special_penguin:
 	ldx.w #state_vars_penguin_ex
@@ -484,8 +490,8 @@ state_vars_per_level:
 	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$08,$00,$00,$00,$00,$00
 	db $02,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 	db $00,$00,$00,$00,$00,$00,$00,$00,$DC,$00,$10,$04,$00,$00,$00,$00
-	// Sigma 1
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$09,$00,$C0,$00,$85,$00
+	// Sigma 1 (Zero intro enabled)
+	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$09,$00,$40,$00,$85,$00
 	db $00,$00,$01,$8E,$8E,$8E,$8E,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
 	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$FF,$20,$04,$FF,$00,$00,$00
 	// Sigma 2
@@ -510,6 +516,11 @@ state_vars_armadillo_ex:
 	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$03,$00,$40,$00,$01,$00
 	db $03,$00,$01,$8E,$8E,$8E,$00,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
 	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$DF,$20,$04,$FF,$00,$00,$00
+state_vars_sigma1_ex:
+	// Sigma 1 (Zero intro disabled)
+	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$09,$00,$C0,$00,$85,$00
+	db $00,$00,$01,$8E,$8E,$8E,$8E,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
+	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$FF,$20,$04,$FF,$00,$00,$00
 
 // Hook end of stage select BG3 tilemap rendering so we can change the stage select screen.
 {savepc}
