@@ -18,7 +18,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 1
 eval version_minor 3
-eval version_revision 0
+eval version_revision 1
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -1250,3 +1250,43 @@ maybe_save_config:
 
 	// Done.
 	bra .return
+
+
+// Prohibit the select button from being used as a gameplay button.
+{savepc}
+	// Ignore direct button presses of select.
+	{reorg $80EB69}
+	and.b #$01  // instead of $03.  $02 is select.
+
+	// Hook pressing left in key config.
+	{reorg $80EB8A}
+	jml config_left_hook
+	// Hook pressing right in key config.
+	{reorg $80EB8E}
+	jml config_right_hook
+{loadpc}
+config_left_hook:
+	// A is 8-bit.  OK to destroy A.  It's loaded right after.
+	lda.b $00
+.repeat:
+	// Do the shift left that was intended.
+	asl
+	// If select, skip it.
+	cmp.b #$02
+	beq .repeat
+	bra config_right_hook.return
+
+// Same thing, but for pressing right, which is a right shift.
+config_right_hook:
+	lda.b $00
+.repeat:
+	lsr
+	cmp.b #$02
+	beq .repeat
+
+// Shared by config_left_hook and config_right_hook
+.return:
+	// Save new value of $00.
+	sta.b $00
+	// Return to where the game wants us.
+	jml $80EBA0
