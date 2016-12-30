@@ -17,16 +17,19 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 
 // Version tags
 eval version_major 1
-eval version_minor 2
-eval version_revision 7
+eval version_minor 3
+eval version_revision 0
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
 eval stage_sigma2 10
 eval stage_sigma3 11
 eval stage_sigma4 12
+eval game_config_size $17
 eval magic_sram_tag_lo $4143  // Combined, these say "CATS"
 eval magic_sram_tag_hi $5354
+eval magic_config_tag_lo $4643  // Combined, these say "CFG0"
+eval magic_config_tag_hi $3047
 // RAM addresses
 eval title_screen_option $7E003C
 eval controller_1_current $7E00A7
@@ -45,6 +48,16 @@ eval life_count $7E1F80
 eval reached_midpoint $7E1F81
 eval weapon_power $7E1F87
 eval intro_completed $7E1F9B
+eval config_data $7EFFC0
+eval config_shot $7EFFC0
+eval config_jump $7EFFC1
+eval config_dash $7EFFC2
+eval config_select_l $7EFFC3
+eval config_select_r $7EFFC4
+eval config_menu $7EFFC5
+eval config_bgm $7EFFC8
+eval config_se $7EFFC9
+eval config_sound $7EFFCA
 eval spc_state_shadow $7EFFFE
 // Temporary storage for load process.  Overlaps game use.
 eval load_temporary_rng $7F0000
@@ -52,6 +65,7 @@ eval load_temporary_rng $7F0000
 eval rom_play_sound $8088B6
 eval rom_nmi_after_pushes $808173
 eval rom_nmi_after_controller $8081C4
+eval rom_default_config $86EE23
 // SRAM addresses for saved states
 eval sram_start $700000
 eval sram_wram_7E0000 $710000
@@ -67,6 +81,8 @@ eval sram_validity $774000
 eval sram_saved_sp $774004
 eval sram_vm_return $774006
 eval sram_previous_command $774008
+eval sram_config_valid $776000
+eval sram_config_data $776004   // Main game config.  config_game_size bytes.
 eval sram_size $080000
 
 
@@ -1100,3 +1116,137 @@ nmi_hook:
 	inx
 	inx
 	jmp ($FFFE,x)
+
+
+// Returns whether configuration is saved in the zero flag.
+// Must be called with 16-bit A!
+is_config_saved:
+	lda.l {sram_config_valid}
+	cmp.w #{magic_config_tag_lo}
+	bne .not_saved
+	lda.l {sram_config_valid} + 2
+	cmp.w #{magic_config_tag_hi}
+.not_saved:
+	rts
+
+
+// Hook the initialization of the configuration data, to provide saving
+// the configuration in SRAM.
+{savepc}
+	{reorg $8085DE}
+	// config_init_hook changes the bank.
+	phb
+	jsl config_init_hook
+	plb
+	bra $8085EB
+{loadpc}
+config_init_hook:
+	// The controller configuration was not in RAM, so initialize it.
+	// We want to use the data from SRAM in this case - if any.
+	rep #$30
+	jsr is_config_saved
+	bne .not_saved
+
+	// Config was saved, so load from SRAM.
+	lda.w #({sram_config_data} >> 16)
+	ldy.w #{sram_config_data}
+	bra .initialize
+
+.not_saved:
+	// Config was not saved, so set to default.
+	lda.w #({rom_default_config} >> 16)
+	ldy.w #{rom_default_config}
+
+.initialize:
+	// Keep X/Y at 16-bit for now.
+	sep #$20
+	// Set bank as specified.
+	pha
+	plb
+	// Copy configuration from either ROM or SRAM.
+	ldx.w #0
+.initialize_loop:
+	lda $0000, y
+	sta.l {config_data}, x
+	iny
+	inx
+	cpx.w #{game_config_size}
+	bcc .initialize_loop
+
+	// Save configuration if needed.
+	sep #$30
+	bra maybe_save_config
+
+
+// Hook the config menu to save automatically.
+{savepc}
+	{reorg $80EAAA}
+	jml config_menu_hook
+{loadpc}
+config_menu_hook:
+	// Save config if anything changed.
+	jsl maybe_save_config
+	// Deleted code.
+	lda.l $7EFF80
+	jml $80EAAE
+
+
+// Save configuration if different or unset.
+// Called with JSL.
+maybe_save_config:
+	php
+
+	// If config not saved at all, save now.
+	rep #$20
+	jsr is_config_saved
+	sep #$30
+	bne .do_save
+
+	// Otherwise, check whether different.
+	// It's bad to continuously write to SRAM because an SD2SNES will then
+	// constantly write to the SD card.
+	ldx.b #0
+.check_loop:
+	// Ignore changes to the BGM and SE values.  The game resets them anyway.
+	cpx.b #{config_bgm} - {config_data}
+	beq .check_skip
+	cpx.b #{config_se} - {config_data}
+	beq .check_skip
+	lda.l {config_data}, x
+	cmp.l {sram_config_data}, x
+	bne .do_save
+.check_skip:
+	inx
+	cpx.b #{game_config_size}
+	bcc .check_loop
+
+.return:
+	plp
+	rtl
+
+	// We should save.
+.do_save:
+	// Clear the magic value during the save.
+	rep #$20
+	lda.w #0
+	sta.l {sram_config_valid} + 0
+	sta.l {sram_config_valid} + 2
+	// Copy config to SRAM.
+	sep #$30
+	ldx.b #0
+.save_loop:
+	lda.l {config_data}, x
+	sta.l {sram_config_data}, x
+	inx
+	cpx.b #{game_config_size}
+	bcc .save_loop
+
+	// Set the magic value.
+	rep #$20
+	lda.w #{magic_config_tag_lo}
+	sta.l {sram_config_valid} + 0
+	lda.w #{magic_config_tag_hi}
+	sta.l {sram_config_valid} + 2
+
+	// Done.
+	bra .return
