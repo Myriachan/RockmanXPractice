@@ -305,7 +305,7 @@ patch_fix_stage_select_cursor:
 	sta.b $07
 {loadpc}
 {savepc}
-	{reorg $86FC00}
+	{reorg $86FA60}
 stage_select_inverse_x:
 	db 1, 1, 2, 0, 3, 0, 1, 3, 2, 0, 3, 0, 3
 stage_select_inverse_y:
@@ -320,7 +320,7 @@ stage_select_inverse_y:
 	{reorg $869349}
 patch_main_menu_text:
 	macro optionset label, attrib1, attrib2
-		db .edition_{label}_end - .edition_{label}_begin, $2C
+		db .edition_{label}_end - .edition_{label}_begin, $38
 		dw $138E >> 1
 	.edition_{label}_begin:
 		db "- Practice Edition -"
