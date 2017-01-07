@@ -17,8 +17,8 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 
 // Version tags
 eval version_major 1
-eval version_minor 3
-eval version_revision 1
+eval version_minor 4
+eval version_revision 0
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -63,6 +63,7 @@ eval spc_state_shadow $7EFFFE
 eval load_temporary_rng $7F0000
 // ROM addresses
 eval rom_play_sound $8088B6
+eval rom_rtl_instruction $808798  // last instruction of rom_play_sound
 eval rom_nmi_after_pushes $808173
 eval rom_nmi_after_controller $8081C4
 eval rom_default_config $86EE23
@@ -303,13 +304,6 @@ patch_fix_stage_select_cursor:
 	sta.b $04
 	lda.w stage_select_inverse_y, x
 	sta.b $07
-{loadpc}
-{savepc}
-	{reorg $86FA60}
-stage_select_inverse_x:
-	db 1, 1, 2, 0, 3, 0, 1, 3, 2, 0, 3, 0, 3
-stage_select_inverse_y:
-	db 1, 0, 3, 1, 1, 2, 3, 2, 0, 0, 0, 3, 3
 {loadpc}
 
 // Title screen text edits:
@@ -626,9 +620,333 @@ palette_multiply_hack:
 	rts
 
 
+// Added data that must be in bank $86.
+{reorg $86FA60}
+
+// These tables convert from stage number to X/Y cursor coordinates for stage select.
+stage_select_inverse_x:
+	db 1, 1, 2, 0, 3, 0, 1, 3, 2, 0, 3, 0, 3
+stage_select_inverse_y:
+	db 1, 0, 3, 1, 1, 2, 3, 2, 0, 0, 0, 3, 3
+
+// Configuration screen text hacks.
+config_screen_moves:
+{savepc}
+	// Move existing strings
+
+	// First group
+	// JUMP (normal)
+	{reorg $869588}
+	dw $1284 >> 1
+	// JUMP (highlighted)
+	{reorg $869591}
+	dw $1284 >> 1
+	// SHOT (normal)
+	{reorg $86959A}
+	dw $1244 >> 1
+	// SHOT (highlighted)
+	{reorg $8695A3}
+	dw $1244 >> 1
+	// SELECT_R (normal)
+	{reorg $8695C6}
+	dw $1344 >> 1
+	// SELECT_R (highlighted)
+	{reorg $8695D3}
+	dw $1344 >> 1
+	// MENU (normal)
+	{reorg $8695E0}
+	dw $1384 >> 1
+	// MENU (highlighted)
+	{reorg $8695E9}
+	dw $1384 >> 1
+	// EXIT (normal)
+	{reorg $8695F2}
+	dw $15AC >> 1
+	// EXIT (highlighted)
+	{reorg $8695FB}
+	dw $15AC >> 1
+	// BGM (normal)
+	{reorg $869604}
+	dw $1644 >> 1
+	// BGM (highlighted)
+	{reorg $86960C}
+	dw $1644 >> 1
+	// S.E. (normal)
+	{reorg $869614}
+	dw $1684 >> 1
+	// S.E. (highlighted)
+	{reorg $86961D}
+	dw $1684 >> 1
+	// DASH (normal)
+	{reorg $869626}
+	dw $12C4 >> 1
+	// DASH (highlighted)
+	{reorg $86962F}
+	dw $12C4 >> 1
+
+	// Second group
+	// " STEREO " (normal)
+	{reorg $86989F}
+	dw $14C4 >> 1
+	// Also overwrite string to move spaces
+	db "STEREO  "
+	// " STEREO " (highlighted)
+	{reorg $8698AC}
+	dw $14C4 >> 1
+	// Also overwrite string to move spaces
+	db "STEREO  "
+	// "MONAURAL" (normal)
+	{reorg $8698B9}
+	dw $14C4 >> 1
+	// "MONAURAL" (highlighted)
+	{reorg $8698C6}
+	dw $14C4 >> 1
+
+	// Button names
+	{reorg $80ECE3}
+	lda.w #$1252 >> 1
+	{reorg $80ECF3}
+	lda.w #$1292 >> 1
+	{reorg $80ED03}
+	lda.w #$12D2 >> 1
+	{reorg $80ED13}
+	lda.w #$1312 >> 1
+	{reorg $80ED23}
+	lda.w #$1352 >> 1
+	{reorg $80ED33}
+	lda.w #$1392 >> 1
+
+	// Song number after "BGM".
+	{reorg $80EDB9}
+	lda.w #$1654 >> 1
+	// Effect number after "S.E."
+	{reorg $80EDFB}
+	lda.w #$1694 >> 1
+
+	// Change "SELECT_L" to "SEL_L".
+	{reorg $8695AA}
+	db .select_l1_end - .select_l1_begin, $20
+	dw $1304 >> 1
+.select_l1_begin:
+	db "SEL_L"
+.select_l1_end:
+	db 0
+	{reorg $8695B7}
+	db .select_l2_end - .select_l2_begin, $2C
+	dw $1304 >> 1
+.select_l2_begin:
+	db "SEL_L"
+.select_l2_end:
+	db 0
+
+	// Change "SELECT_R" to "SEL_R".
+	{reorg $8695C4}
+	db .select_r1_end - .select_r1_begin, $20
+	dw $1344 >> 1
+.select_r1_begin:
+	db "SEL_R"
+.select_r1_end:
+	db 0
+	{reorg $8695D1}
+	db .select_r2_end - .select_r2_begin, $2C
+	dw $1344 >> 1
+.select_r2_begin:
+	db "SEL_R"
+.select_r2_end:
+	db 0
+{loadpc}
+
+// Option category titles.
+{savepc}
+	{reorg $869143}
+	dw string_option_titles
+{loadpc}
+string_option_titles:
+	db .key_config_end - .key_config_begin, $38
+	dw $11C6 >> 1
+.key_config_begin:
+	db "KEY CONFIG"   // deleted period
+.key_config_end:
+
+	db .sound_mode_end - .sound_mode_begin, $38
+	dw $1446 >> 1
+.sound_mode_begin:
+	db "SOUND MODE"
+.sound_mode_end:
+
+	db .sound_test_end - .sound_test_begin, $38
+	dw $15C6 >> 1
+.sound_test_begin:
+	db "SOUND TEST"
+.sound_test_end:
+
+	db .route_end - .route_begin, $38
+	dw $11EC >> 1
+.route_begin:
+	db "ROUTE"
+.route_end:
+
+	db .misc_end - .misc_begin, $38
+	dw $136C >> 1
+.misc_begin:
+	db "MISC."
+.misc_end:
+
+	db 0
+
+// New option strings.
+	macro option_string label, string, vramaddr
+		{label}_normal:
+			db .end - .begin, $20
+			dw {vramaddr} >> 1
+		.begin:
+			db {string}
+		.end:
+			db 0
+
+		{label}_highlighted:
+			db .end - .begin, $2C
+			dw {vramaddr} >> 1
+		.begin:
+			db {string}
+		.end:
+			db 0
+	endmacro
+
+	{option_string string_anypercent, "ANY`", $1266}
+	{option_string string_100percent, "100`", $1266}
+
+	{option_string string_mammoth_3rd, "MAMMOTH 3RD", $12A6}
+	{option_string string_mammoth_4th, "MAMMOTH 4TH", $12A6}
+	{option_string string_mammoth_5th, "MAMMOTH 5TH", $12A6}
+	{option_string string_mammoth_6th, "MAMMOTH 6TH", $12A6}
+	{option_string string_mammoth_7th, "MAMMOTH 7TH", $12A6}
+	{option_string string_mammoth_8th, "MAMMOTH 8TH", $12A6}
+
+	{option_string string_iceless,     "ICELESS    ", $12A6}
+	{option_string string_waterless,   "WATERLESS  ", $12A6}
+
+	{option_string string_midpoints_on,  "MIDS   ON ", $13E6}
+	{option_string string_midpoints_off, "MIDS   OFF", $13E6}
+	{option_string string_rng_keep, "RNG    KEEP", $1426}
+	{option_string string_rng_save, "RNG    SAVE", $1426}
+
+	{option_string string_music_on,  "MUSIC   ON ", $1504}
+	{option_string string_music_off, "MUSIC   OFF", $1504}
+
+	// I'm too lazy to rework the compressed font, so I use this to overwrite
+	// the ` character in VRAM.  The field used for the "attribute" of the
+	// "text" just becomes the high byte of each pair of bytes.
+	macro tilerow vrambase, rownum, col7, col6, col5, col4, col3, col2, col1, col0
+		db 1, (({col7} & 2) << 6) | (({col6} & 2) << 5) | (({col5} & 2) << 4) | (({col4} & 2) << 3) | (({col3} & 2) << 2) | (({col2} & 2) << 1) | ({col1} & 2) | (({col0} & 2) >> 1)
+		dw (({vrambase}) + (({rownum}) * 2)) >> 1
+		db (({col7} & 1) << 7) | (({col6} & 1) << 6) | (({col5} & 1) << 5) | (({col4} & 1) << 4) | (({col3} & 1) << 3) | (({col2} & 1) << 2) | (({col1} & 1) << 1) | ({col0} & 1)
+	endmacro
+
+option_percent_sign_bitmap:
+	{tilerow $0600, 0,   0,2,3,0,0,0,2,3}
+	{tilerow $0600, 1,   2,3,2,3,0,2,3,0}
+	{tilerow $0600, 2,   3,1,3,0,1,3,0,0}
+	{tilerow $0600, 3,   0,3,0,1,3,0,0,0}
+	{tilerow $0600, 4,   0,0,1,3,0,1,3,0}
+	{tilerow $0600, 5,   0,2,3,0,2,3,2,3}
+	{tilerow $0600, 6,   2,3,0,0,3,2,3,0}
+	{tilerow $0600, 7,   3,0,0,0,0,3,0,0}
+	db 0
+
+
+// New additions to string table.  This table has reserved entries not being used.
+{savepc}
+	// Table starts at $86910B
+	{reorg $869193}
+	dw string_anypercent_normal                        // $44
+	dw string_anypercent_highlighted                   // $45
+	dw string_100percent_normal				           // $46
+	dw string_100percent_highlighted		           // $47
+	dw string_mammoth_3rd_normal			           // $48
+	dw string_mammoth_3rd_highlighted		           // $49
+	dw string_mammoth_4th_normal			           // $4A
+	dw string_mammoth_4th_highlighted		           // $4B
+	dw string_mammoth_5th_normal			           // $4C
+	dw string_mammoth_5th_highlighted		           // $4D
+	dw string_mammoth_6th_normal			           // $4E
+	dw string_mammoth_6th_highlighted		           // $4F
+	dw string_mammoth_7th_normal			           // $50
+	dw string_mammoth_7th_highlighted		           // $51
+	dw string_mammoth_8th_normal			           // $52
+	dw string_mammoth_8th_highlighted		           // $53
+	dw string_iceless_normal				           // $54
+	dw string_iceless_highlighted			           // $55
+	dw string_waterless_normal				           // $56
+	dw string_waterless_highlighted			           // $57
+	dw string_midpoints_on_normal			           // $58
+	dw string_midpoints_on_highlighted		           // $59
+	dw string_midpoints_off_normal			           // $5A
+	dw string_midpoints_off_highlighted		           // $5B
+	dw string_rng_keep_normal				           // $5C
+	dw string_rng_keep_highlighted			           // $5D
+	dw string_rng_save_normal				           // $5E
+	dw string_rng_save_highlighted			           // $5F
+	dw string_music_on_normal				           // $60
+	dw string_music_on_highlighted			           // $61
+	dw string_music_off_normal				           // $62
+	dw string_music_off_highlighted			           // $63
+	dw option_percent_sign_bitmap                      // $64
+{loadpc}
+
+// Hack initial config menu routine to add more strings.
+{savepc}
+	{reorg $80EA5C}
+	jml config_menu_start_hook
+{loadpc}
+config_menu_start_hook:
+	// We enter with A/X/Y 8-bit and bank set to $86 (our code bank)
+	// Deleted code.  We need to do this first, or 8100 fails.
+	lda.b #7
+	tsb.w $7E00A2
+
+	ldx.b #0
+.string_loop:
+	lda.w config_menu_extra_string_table, x
+	phx
+	beq .string_flush
+	jsl trampoline_8089CA
+	bra .string_next
+.string_flush:
+	jsl trampoline_808100
+.string_next:
+	plx
+	inx
+	cpx.b #config_menu_extra_string_table.end - config_menu_extra_string_table
+	bne .string_loop
+
+	jml $80EA61
+	
+
+config_menu_extra_string_table:
+	// Extra call to 8100 to execute and flush the draw buffer before our first
+	// string, otherwise we end up drawing too much.
+	db $00
+	db $46, $54, $58, $5C, $60
+	// Another flush.
+	db $00
+	db $64
+	// We return to a flush call.
+.end:
+
+
+// Trampoline for calling $808100
+trampoline_808100:
+	pea ({rom_rtl_instruction} - 1) & 0xFFFF
+	jml $808100
+// Trampoline for calling $8089CA
+trampoline_8089CA:
+	pea ({rom_rtl_instruction} - 1) & 0xFFFF
+	jml $8089CA
+
+
 // Saved state hacks
 {savepc}
-	//{reorg $80FFA4}
 	{reorg $8081AB}
 	jml nmi_hook
 {loadpc}
