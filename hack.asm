@@ -63,8 +63,10 @@ eval spc_state_shadow $7EFFFE
 // Temporary storage for load process.  Overlaps game use.
 eval load_temporary_rng $7F0000
 // ROM addresses
+eval rom_play_music $80878B
 eval rom_play_sound $8088B6
 eval rom_rtl_instruction $808798  // last instruction of rom_play_sound
+eval rom_rts_instruction $8087D0  // last instruction of some part of rom_play_music
 eval rom_nmi_after_pushes $808173
 eval rom_nmi_after_controller $8081C4
 eval rom_config_loop $80EAAA
@@ -995,6 +997,10 @@ trampoline_808100:
 trampoline_8089CA:
 	pea ({rom_rtl_instruction} - 1) & 0xFFFF
 	jml $8089CA
+// Trampoline for calling $808862
+//trampoline_808862:
+//	pea ({rom_rtl_instruction} - 1) & 0xFFFF
+//	jml $808862
 
 
 // Functions to get the string to show for the current setting.
@@ -1160,6 +1166,7 @@ config_code_godmode:
 // X = index into sram_config_extra
 // Y = string ID of default (zero) option.
 config_extra_toggle:
+//	jsl trampoline_808862
 	// Was left or right pressed?
 	lda.b {controller_1_new} + 1
 	and.b #$03
@@ -1947,3 +1954,57 @@ midpoint_load_hook:
 	rep #$20
 	lda.w {midpoint_flag}
 	jml $80E6A7
+
+
+// Music disable.
+{savepc}
+	{reorg $808799}
+	jml play_music_hook
+{loadpc}
+play_music_hook:
+	// We want A=8 for the moment.  Also, deleted code.
+	sep #$30
+	// Save the song ID to stack.
+	pha
+	// Check for the "music off" config setting.
+	lda.l {sram_config_musicoff}
+	beq .music_on
+	// Stack layout at this point:
+	// S -> byte before stack
+	//      saved song number
+	//      low byte of 808799's near return address
+	//      high byte of 808799's near return address
+	//      low byte of 80878B's saved D register      \ 
+	//      high byte of 80878B's saved D register      \ 
+	//      80878B's saved P register                    > assuming caller was rom_play_music
+	//      low byte of 80878B's far return address     /
+	//      high byte of 80878B's far return address   /
+	//      low byte of 80878B's far return address   /
+	// Check whether the caller was rom_play_music (middle of $80878B).
+	rep #$20
+	lda 2, s
+	cmp.w #($808796 - 1) & $FFFF
+	bne .music_off
+	// Check whether rom_play_music's caller is the config menu's BGM option.
+	lda 7, s
+	cmp.w #($80EC6B - 1) & $FFFF
+	bne .music_off
+	sep #$20
+	lda 9, s
+	cmp.b #$80EC6B >> 16
+	beq .music_on
+.music_off:
+	// Music is off, and we're not in the config screen.
+	sep #$30
+	pla
+	jml {rom_rts_instruction}
+.music_on:
+	// Deleted code, but we need for pla.
+	sep #$30
+	// Restore song ID.
+	pla
+	// Deleted code.
+	tay
+	lda $806B, y
+	// Return to play_music code.
+	jml $80879F
