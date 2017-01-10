@@ -28,8 +28,8 @@ eval stage_sigma4 12
 eval game_config_size $17
 eval magic_sram_tag_lo $4143  // Combined, these say "CATS"
 eval magic_sram_tag_hi $5354
-eval magic_config_tag_lo $4643  // Combined, these say "CFG0"
-eval magic_config_tag_hi $3047
+eval magic_config_tag_lo $4643  // Combined, these say "CFG1"
+eval magic_config_tag_hi $3147
 // RAM addresses
 eval title_screen_option $7E003C
 eval controller_1_current $7E00A7
@@ -48,6 +48,7 @@ eval life_count $7E1F80
 eval reached_midpoint $7E1F81
 eval weapon_power $7E1F87
 eval intro_completed $7E1F9B
+eval config_selected_option $7EFF80
 eval config_data $7EFFC0
 eval config_shot $7EFFC0
 eval config_jump $7EFFC1
@@ -66,6 +67,12 @@ eval rom_play_sound $8088B6
 eval rom_rtl_instruction $808798  // last instruction of rom_play_sound
 eval rom_nmi_after_pushes $808173
 eval rom_nmi_after_controller $8081C4
+eval rom_config_loop $80EAAA
+eval rom_config_button $80EB55
+eval rom_config_stereo $80EBE8
+eval rom_config_bgm $80EC30
+eval rom_config_se $80EC74
+eval rom_config_exit $80ECC0
 eval rom_default_config $86EE23
 // SRAM addresses for saved states
 eval sram_start $700000
@@ -83,7 +90,15 @@ eval sram_saved_sp $774004
 eval sram_vm_return $774006
 eval sram_previous_command $774008
 eval sram_config_valid $776000
-eval sram_config_data $776004   // Main game config.  config_game_size bytes.
+eval sram_config_game $776004   // Main game config.  game_config_size bytes.
+eval sram_config_extra {sram_config_game} + {game_config_size}
+eval sram_config_category {sram_config_extra} + 0
+eval sram_config_route {sram_config_extra} + 1
+eval sram_config_midpointsoff {sram_config_extra} + 2
+eval sram_config_keeprng {sram_config_extra} + 3
+eval sram_config_musicoff {sram_config_extra} + 4
+eval sram_config_godmode {sram_config_extra} + 5
+eval sram_config_extra_size 6   // adjust this as more are added
 eval sram_size $080000
 
 
@@ -687,20 +702,24 @@ config_screen_moves:
 	// Second group
 	// " STEREO " (normal)
 	{reorg $86989F}
-	dw $14C4 >> 1
+	dw $14D6 >> 1
 	// Also overwrite string to move spaces
 	db "STEREO  "
 	// " STEREO " (highlighted)
 	{reorg $8698AC}
-	dw $14C4 >> 1
+	dw $14D6 >> 1
 	// Also overwrite string to move spaces
 	db "STEREO  "
 	// "MONAURAL" (normal)
 	{reorg $8698B9}
-	dw $14C4 >> 1
+	dw $14D6 >> 1
+	// Also overwrite string to rename "MONO"
+	db "MONO    "
 	// "MONAURAL" (highlighted)
 	{reorg $8698C6}
-	dw $14C4 >> 1
+	dw $14D6 >> 1
+	// Also overwrite string to rename "MONO"
+	db "MONO    "
 
 	// Button names
 	{reorg $80ECE3}
@@ -718,10 +737,10 @@ config_screen_moves:
 
 	// Song number after "BGM".
 	{reorg $80EDB9}
-	lda.w #$1654 >> 1
+	lda.w #$1656 >> 1
 	// Effect number after "S.E."
 	{reorg $80EDFB}
-	lda.w #$1694 >> 1
+	lda.w #$1696 >> 1
 
 	// Change "SELECT_L" to "SEL_L".
 	{reorg $8695AA}
@@ -756,94 +775,79 @@ config_screen_moves:
 	db 0
 {loadpc}
 
+// Macros for creating new option strings.
+macro option_string label, string, vramaddr, attribute, terminator
+	{label}:
+		db {label}_end - {label}_begin, {attribute}
+		dw {vramaddr} >> 1
+	{label}_begin:
+		db {string}
+	{label}_end:
+	if {terminator}
+		db 0
+	endif
+endmacro
+
+macro option_string_pair label, string, vramaddr
+	{option_string {label}_normal, {string}, {vramaddr}, $20, 1}
+	{option_string {label}_highlighted, {string}, {vramaddr}, $2C, 1}
+endmacro
+
 // Option category titles.
 {savepc}
 	{reorg $869143}
 	dw string_option_titles
 {loadpc}
 string_option_titles:
-	db .key_config_end - .key_config_begin, $38
-	dw $11C6 >> 1
-.key_config_begin:
-	db "KEY CONFIG"   // deleted period
-.key_config_end:
-
-	db .sound_mode_end - .sound_mode_begin, $38
-	dw $1446 >> 1
-.sound_mode_begin:
-	db "SOUND MODE"
-.sound_mode_end:
-
-	db .sound_test_end - .sound_test_begin, $38
-	dw $15C6 >> 1
-.sound_test_begin:
-	db "SOUND TEST"
-.sound_test_end:
-
-	db .route_end - .route_begin, $38
-	dw $11EC >> 1
-.route_begin:
-	db "ROUTE"
-.route_end:
-
-	db .misc_end - .misc_begin, $38
-	dw $136C >> 1
-.misc_begin:
-	db "MISC."
-.misc_end:
-
+	{option_string .key_config, "KEY CONFIG", $11C6, $38, 0}
+	{option_string .sound_mode, "SOUND MODE", $1446, $38, 0}
+	{option_string .sound_test, "SOUND TEST", $15C6, $38, 0}
+	{option_string .route, "ROUTE", $11EC, $38, 0}
+	{option_string .misc, "MISC.", $136C, $38, 0}
 	db 0
 
-// New option strings.
-	macro option_string label, string, vramaddr
-		{label}_normal:
-			db .end - .begin, $20
-			dw {vramaddr} >> 1
-		.begin:
-			db {string}
-		.end:
-			db 0
+// Extra strings we're adding.
+	{option_string_pair string_anypercent, "ANY`", $1266}
+	{option_string_pair string_100percent, "100`", $1266}
 
-		{label}_highlighted:
-			db .end - .begin, $2C
-			dw {vramaddr} >> 1
-		.begin:
-			db {string}
-		.end:
-			db 0
-	endmacro
+	{option_string_pair string_mammoth_3rd, "MAMMOTH 3RD", $12A6}
+	{option_string_pair string_mammoth_4th, "MAMMOTH 4TH", $12A6}
+	{option_string_pair string_mammoth_5th, "MAMMOTH 5TH", $12A6}
+	{option_string_pair string_mammoth_6th, "MAMMOTH 6TH", $12A6}
+	{option_string_pair string_mammoth_7th, "MAMMOTH 7TH", $12A6}
+	{option_string_pair string_mammoth_8th, "MAMMOTH 8TH", $12A6}
 
-	{option_string string_anypercent, "ANY`", $1266}
-	{option_string string_100percent, "100`", $1266}
+	{option_string_pair string_iceless,     "ICELESS    ", $12A6}
+	{option_string_pair string_waterless,   "WATERLESS  ", $12A6}
 
-	{option_string string_mammoth_3rd, "MAMMOTH 3RD", $12A6}
-	{option_string string_mammoth_4th, "MAMMOTH 4TH", $12A6}
-	{option_string string_mammoth_5th, "MAMMOTH 5TH", $12A6}
-	{option_string string_mammoth_6th, "MAMMOTH 6TH", $12A6}
-	{option_string string_mammoth_7th, "MAMMOTH 7TH", $12A6}
-	{option_string string_mammoth_8th, "MAMMOTH 8TH", $12A6}
+	{option_string_pair string_output, "OUTPUT", $14C4}
 
-	{option_string string_iceless,     "ICELESS    ", $12A6}
-	{option_string string_waterless,   "WATERLESS  ", $12A6}
+	{option_string_pair string_music, "MUSIC", $1504}
+	{option_string string_music_on,  "ON ", $1516, $20, 1}
+	{option_string string_music_off, "OFF", $1516, $20, 1}
 
-	{option_string string_midpoints_on,  "MIDS   ON ", $13E6}
-	{option_string string_midpoints_off, "MIDS   OFF", $13E6}
-	{option_string string_rng_keep, "RNG    KEEP", $1426}
-	{option_string string_rng_save, "RNG    SAVE", $1426}
+	{option_string_pair string_midpoints, "MIDPOINT", $13E6}
+	{option_string string_midpoints_on,  "ON ", $13F8, $20, 1}
+	{option_string string_midpoints_off, "OFF", $13F8, $20, 1}
 
-	{option_string string_music_on,  "MUSIC   ON ", $1504}
-	{option_string string_music_off, "MUSIC   OFF", $1504}
+	{option_string_pair string_keeprng, "KEEP RNG", $1426}
+	{option_string string_keeprng_on, "ON ", $1438, $20, 1}
+	{option_string string_keeprng_off, "OFF", $1438, $20, 1}
 
-	// I'm too lazy to rework the compressed font, so I use this to overwrite
-	// the ` character in VRAM.  The field used for the "attribute" of the
-	// "text" just becomes the high byte of each pair of bytes.
-	macro tilerow vrambase, rownum, col7, col6, col5, col4, col3, col2, col1, col0
-		db 1, (({col7} & 2) << 6) | (({col6} & 2) << 5) | (({col5} & 2) << 4) | (({col4} & 2) << 3) | (({col3} & 2) << 2) | (({col2} & 2) << 1) | ({col1} & 2) | (({col0} & 2) >> 1)
-		dw (({vrambase}) + (({rownum}) * 2)) >> 1
-		db (({col7} & 1) << 7) | (({col6} & 1) << 6) | (({col5} & 1) << 5) | (({col4} & 1) << 4) | (({col3} & 1) << 3) | (({col2} & 1) << 2) | (({col1} & 1) << 1) | ({col0} & 1)
-	endmacro
+	{option_string_pair string_godmode, "GODMODE", $1466}
+	{option_string string_godmode_on, "ON ", $1478, $20, 1}
+	{option_string string_godmode_off, "OFF", $1478, $20, 1}
 
-option_percent_sign_bitmap:
+// I'm too lazy to rework the compressed font, so I use this to overwrite
+// the ` character in VRAM.  The field used for the "attribute" of the
+// "text" just becomes the high byte of each pair of bytes.
+macro tilerow vrambase, rownum, col7, col6, col5, col4, col3, col2, col1, col0
+	db 1, (({col7} & 2) << 6) | (({col6} & 2) << 5) | (({col5} & 2) << 4) | (({col4} & 2) << 3) | (({col3} & 2) << 2) | (({col2} & 2) << 1) | ({col1} & 2) | (({col0} & 2) >> 1)
+	dw (({vrambase}) + (({rownum}) * 2)) >> 1
+	db (({col7} & 1) << 7) | (({col6} & 1) << 6) | (({col5} & 1) << 5) | (({col4} & 1) << 4) | (({col3} & 1) << 3) | (({col2} & 1) << 2) | (({col1} & 1) << 1) | ({col0} & 1)
+endmacro
+
+string_percent_sign_bitmap:
 	{tilerow $0600, 0,   0,2,3,0,0,0,2,3}
 	{tilerow $0600, 1,   2,3,2,3,0,2,3,0}
 	{tilerow $0600, 2,   3,1,3,0,1,3,0,0}
@@ -857,42 +861,57 @@ option_percent_sign_bitmap:
 
 // New additions to string table.  This table has reserved entries not being used.
 {savepc}
-	// Table starts at $86910B
+	// Table starts here in reality.
+	{reorg $86910B}
+string_table:
 	{reorg $869193}
-	dw string_anypercent_normal                        // $44
-	dw string_anypercent_highlighted                   // $45
-	dw string_100percent_normal				           // $46
-	dw string_100percent_highlighted		           // $47
-	dw string_mammoth_3rd_normal			           // $48
-	dw string_mammoth_3rd_highlighted		           // $49
-	dw string_mammoth_4th_normal			           // $4A
-	dw string_mammoth_4th_highlighted		           // $4B
-	dw string_mammoth_5th_normal			           // $4C
-	dw string_mammoth_5th_highlighted		           // $4D
-	dw string_mammoth_6th_normal			           // $4E
-	dw string_mammoth_6th_highlighted		           // $4F
-	dw string_mammoth_7th_normal			           // $50
-	dw string_mammoth_7th_highlighted		           // $51
-	dw string_mammoth_8th_normal			           // $52
-	dw string_mammoth_8th_highlighted		           // $53
-	dw string_iceless_normal				           // $54
-	dw string_iceless_highlighted			           // $55
-	dw string_waterless_normal				           // $56
-	dw string_waterless_highlighted			           // $57
-	dw string_midpoints_on_normal			           // $58
-	dw string_midpoints_on_highlighted		           // $59
-	dw string_midpoints_off_normal			           // $5A
-	dw string_midpoints_off_highlighted		           // $5B
-	dw string_rng_keep_normal				           // $5C
-	dw string_rng_keep_highlighted			           // $5D
-	dw string_rng_save_normal				           // $5E
-	dw string_rng_save_highlighted			           // $5F
-	dw string_music_on_normal				           // $60
-	dw string_music_on_highlighted			           // $61
-	dw string_music_off_normal				           // $62
-	dw string_music_off_highlighted			           // $63
-	dw option_percent_sign_bitmap                      // $64
+	macro stringtableentry label
+		.idcalc_{label}:
+			dw (string_{label}) & $FFFF
+		eval stringid_{label} (string_table.idcalc_{label} - string_table) / 2
+	endmacro
+
+	{stringtableentry percent_sign_bitmap}
+	{stringtableentry 100percent_normal}
+	{stringtableentry 100percent_highlighted}
+	{stringtableentry anypercent_normal}
+	{stringtableentry anypercent_highlighted}
+	{stringtableentry iceless_normal}
+	{stringtableentry iceless_highlighted}
+	{stringtableentry waterless_normal}
+	{stringtableentry waterless_highlighted}
+	{stringtableentry mammoth_3rd_normal}
+	{stringtableentry mammoth_3rd_highlighted}
+	{stringtableentry mammoth_4th_normal}
+	{stringtableentry mammoth_4th_highlighted}
+	{stringtableentry mammoth_5th_normal}
+	{stringtableentry mammoth_5th_highlighted}
+	{stringtableentry mammoth_6th_normal}
+	{stringtableentry mammoth_6th_highlighted}
+	{stringtableentry mammoth_7th_normal}
+	{stringtableentry mammoth_7th_highlighted}
+	{stringtableentry mammoth_8th_normal}
+	{stringtableentry mammoth_8th_highlighted}
+	{stringtableentry output_normal}
+	{stringtableentry output_highlighted}
+	{stringtableentry midpoints_normal}
+	{stringtableentry midpoints_highlighted}
+	{stringtableentry midpoints_on}                 // on, off -> option inverted
+	{stringtableentry midpoints_off}
+	{stringtableentry keeprng_normal}
+	{stringtableentry keeprng_highlighted}
+	{stringtableentry keeprng_off}
+	{stringtableentry keeprng_on}
+	{stringtableentry music_normal}
+	{stringtableentry music_highlighted}
+	{stringtableentry music_on}                     // on, off -> option inverted
+	{stringtableentry music_off}
+	{stringtableentry godmode_normal}
+	{stringtableentry godmode_highlighted}
+	{stringtableentry godmode_off}
+	{stringtableentry godmode_on}
 {loadpc}
+
 
 // Hack initial config menu routine to add more strings.
 {savepc}
@@ -910,27 +929,58 @@ config_menu_start_hook:
 	lda.w config_menu_extra_string_table, x
 	phx
 	beq .string_flush
+	cmp.b #$FF
+	beq .special
 	jsl trampoline_8089CA
 	bra .string_next
+.special:
+	// Call a function
+	inx
+	clc   // having carry clear is convenient for these functions
+	jsr (config_menu_extra_string_table, x)
+	jsl trampoline_8089CA
+	plx
+	inx
+	inx
+	bra .special_resume
 .string_flush:
 	jsl trampoline_808100
 .string_next:
 	plx
+.special_resume:  // save 1 byte by using the extra inx here
 	inx
 	cpx.b #config_menu_extra_string_table.end - config_menu_extra_string_table
 	bne .string_loop
 
 	jml $80EA61
-	
 
+
+// Table of static strings to render at config screen load time.
 config_menu_extra_string_table:
 	// Extra call to 8100 to execute and flush the draw buffer before our first
 	// string, otherwise we end up drawing too much.
 	db $00
-	db $46, $54, $58, $5C, $60
-	// Another flush.
+	// The percent sign needs to be done alone.
+	db {stringid_percent_sign_bitmap}
+	// Selectable option labels.
+	db {stringid_midpoints_normal}
+	db {stringid_keeprng_normal}
+	db {stringid_godmode_normal}
+	db {stringid_music_normal}
 	db $00
-	db $64
+	// Extra option values.
+	db $FF
+	dw config_get_stringid_category
+	db $FF
+	dw config_get_stringid_route
+	db $FF
+	dw config_get_stringid_midpointsoff
+	db $FF
+	dw config_get_stringid_keeprng
+	db $FF
+	dw config_get_stringid_musicoff
+	db $FF
+	dw config_get_stringid_godmode
 	// We return to a flush call.
 .end:
 
@@ -943,6 +993,180 @@ trampoline_808100:
 trampoline_8089CA:
 	pea ({rom_rtl_instruction} - 1) & 0xFFFF
 	jml $8089CA
+
+
+// Functions to get the string to show for the current setting.
+// We enter each function with carry clear for convenience.
+config_get_stringid_category:
+	lda.l {sram_config_category}
+	asl
+	adc.b #{stringid_100percent_normal}
+	rts
+
+config_get_stringid_route:
+	lda.l {sram_config_category}
+	bne .route_anyp
+	lda.l {sram_config_route}
+	asl
+	adc.b #{stringid_iceless_normal}
+	rts
+.route_anyp:
+	lda.l {sram_config_route}
+	asl
+	adc.b #{stringid_mammoth_3rd_normal}
+	rts
+
+config_get_stringid_midpointsoff:
+	lda.l {sram_config_midpointsoff}
+	and.b #$01
+	adc.b #{stringid_midpoints_on}
+	rts
+
+config_get_stringid_keeprng:
+	lda.l {sram_config_keeprng}
+	and.b #$01
+	adc.b #{stringid_keeprng_off}
+	rts
+
+config_get_stringid_musicoff:
+	lda.l {sram_config_musicoff}
+	and.b #$01
+	adc.b #{stringid_music_on}
+	rts
+
+config_get_stringid_godmode:
+	lda.l {sram_config_godmode}
+	and.b #$01
+	adc.b #{stringid_godmode_off}
+	rts
+
+
+// Mapping from config option ID to unhighlighted string ID.
+// Used for drawing the blue text when unhighlighting the previous option.
+{savepc}
+	// Use our alternate table.
+	{reorg $80EA52}
+	lda.w config_unhighlighted_stringids, x
+	{reorg $80EAFC}
+	lda.w config_unhighlighted_stringids, x
+	{reorg $80EB19}
+	lda.w config_unhighlighted_stringids, x
+	// Don't special-case stereo/mono when highlighting.
+	{reorg $80EB1F}
+	bra $80EB2F
+{loadpc}
+config_unhighlighted_stringids:
+	db $1F   // SHOT
+	db $1D   // JUMP
+	db $2D   // DASH
+	db $21   // SEL_L
+	db $23   // SEL_R
+	db $25   // MENU
+	db {stringid_output_normal}
+	db {stringid_music_normal}
+	db $29   // BGM
+	db $2B   // S.E.
+	db {stringid_midpoints_normal}
+	db {stringid_keeprng_normal}
+	db {stringid_godmode_normal}
+	db $27   // EXIT
+.end:
+
+
+// Config menu code hacks.
+{savepc}
+	// Increase number of options.
+	{reorg $80EADB}
+	lda.b #((config_option_jump_table.end - config_option_jump_table) / 3) - 1
+	{reorg $80EAE3}
+	cmp.b #(config_option_jump_table.end - config_option_jump_table) / 3
+
+	// Don't handle stereo/mono specially in the above table.
+	{reorg $80EB01}
+	bra $80EB11
+
+	// Use unhighlighted string IDs for STEREO/MONO.
+	{reorg $80EBFC}
+	lda.b #$40
+	{reorg $80EC16}
+	lda.b #$42
+
+	// Use config_option_jump_table instead of the built-in one.
+	// Note that we can overwrite the config table.
+	{reorg $80EB3D}
+	// clc not necessary because of asl of small value
+	adc.l {config_selected_option}
+	tax
+	lda.l config_option_jump_table + 2, x
+	pha
+	rep #$20
+	lda.l config_option_jump_table + 0, x
+	pha
+	sep #$20
+	rtl
+
+{loadpc}
+config_option_jump_table:
+	// These are minus one due to using RTL to jump to them.
+	dl {rom_config_button} - 1
+	dl {rom_config_button} - 1
+	dl {rom_config_button} - 1
+	dl {rom_config_button} - 1
+	dl {rom_config_button} - 1
+	dl {rom_config_button} - 1
+	dl {rom_config_stereo} - 1
+	dl config_code_musicoff - 1
+	dl {rom_config_bgm} - 1
+	dl {rom_config_se} - 1
+	dl config_code_midpoint - 1
+	dl config_code_keeprng - 1
+	dl config_code_godmode - 1
+	dl {rom_config_exit} - 1
+.end:
+
+
+config_code_musicoff:
+	ldx.b #{sram_config_musicoff} - {sram_config_extra}
+	ldy.b #{stringid_music_on}
+	bra config_extra_toggle
+
+config_code_midpoint:
+	ldx.b #{sram_config_midpointsoff} - {sram_config_extra}
+	ldy.b #{stringid_midpoints_on}
+	bra config_extra_toggle
+
+config_code_keeprng:
+	ldx.b #{sram_config_keeprng} - {sram_config_extra}
+	ldy.b #{stringid_keeprng_off}
+	bra config_extra_toggle
+
+config_code_godmode:
+	ldx.b #{sram_config_godmode} - {sram_config_extra}
+	ldy.b #{stringid_godmode_off}
+	bra config_extra_toggle
+
+// Shared routines for simple toggles.
+// X = index into sram_config_extra
+// Y = string ID of default (zero) option.
+config_extra_toggle:
+	// Was left or right pressed?
+	lda.b {controller_1_new} + 1
+	and.b #$03
+	beq .no_change
+	// Toggle the flag.
+	lda.l {sram_config_extra}, x
+	and.b #$01
+	eor.b #$01
+	sta.l {sram_config_extra}, x
+	// Draw the new string.
+	beq .zero
+	iny
+.zero:
+	tya
+	jsl trampoline_8089CA
+.no_change:
+	jsl trampoline_808100
+	jml {rom_config_loop}
 
 
 // Saved state hacks
@@ -1466,12 +1690,24 @@ config_init_hook:
 	bne .not_saved
 
 	// Config was saved, so load from SRAM.
-	lda.w #({sram_config_data} >> 16)
-	ldy.w #{sram_config_data}
+	lda.w #({sram_config_game} >> 16)
+	ldy.w #{sram_config_game}
 	bra .initialize
 
 .not_saved:
 	// Config was not saved, so set to default.
+	// Set our extra config to default.
+	sep #$30
+	lda.b #0
+	ldx.b #0
+.extra_default_loop:
+	sta.l {sram_config_extra}, x
+	inx
+	cpx.b {sram_config_extra_size}
+	bne .extra_default_loop
+	rep #$30
+
+	// Copy from ROM's default config to game config.
 	lda.w #({rom_default_config} >> 16)
 	ldy.w #{rom_default_config}
 
@@ -1531,7 +1767,7 @@ maybe_save_config:
 	cpx.b #{config_se} - {config_data}
 	beq .check_skip
 	lda.l {config_data}, x
-	cmp.l {sram_config_data}, x
+	cmp.l {sram_config_game}, x
 	bne .do_save
 .check_skip:
 	inx
@@ -1554,7 +1790,7 @@ maybe_save_config:
 	ldx.b #0
 .save_loop:
 	lda.l {config_data}, x
-	sta.l {sram_config_data}, x
+	sta.l {sram_config_game}, x
 	inx
 	cpx.b #{game_config_size}
 	bcc .save_loop
