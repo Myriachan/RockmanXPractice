@@ -45,8 +45,8 @@ eval rng_value $7E0BA6
 eval state_vars $7E1F70
 eval current_level $7E1F7A
 eval life_count $7E1F80
-eval reached_midpoint $7E1F81
-eval weapon_power $7E1F87
+eval midpoint_flag $7E1F81
+eval weapon_power $7E1F85
 eval intro_completed $7E1F9B
 eval config_selected_option $7EFF80
 eval config_data $7EFFC0
@@ -400,7 +400,7 @@ escape_u_hack:
 .nextline2:
 	asl
 	tax
-	lda.w {weapon_power} - 2 + 1, x
+	lda.w {weapon_power} + 1, x
 	lda.b #$40
 	bra .nextline3
 .nextline3:
@@ -967,7 +967,7 @@ config_menu_extra_string_table:
 	db {stringid_keeprng_normal}
 	db {stringid_godmode_normal}
 	db {stringid_music_normal}
-	db $00
+	db $00  // flush
 	// Extra option values.
 	db $FF
 	dw config_get_stringid_category
@@ -979,6 +979,8 @@ config_menu_extra_string_table:
 	dw config_get_stringid_keeprng
 	db $FF
 	dw config_get_stringid_musicoff
+	db $00  // flush
+	db $27  // EXIT
 	db $FF
 	dw config_get_stringid_godmode
 	// We return to a flush call.
@@ -999,6 +1001,7 @@ trampoline_8089CA:
 // We enter each function with carry clear for convenience.
 config_get_stringid_category:
 	lda.l {sram_config_category}
+	and.b #$01
 	asl
 	adc.b #{stringid_100percent_normal}
 	rts
@@ -1007,11 +1010,19 @@ config_get_stringid_route:
 	lda.l {sram_config_category}
 	bne .route_anyp
 	lda.l {sram_config_route}
+	cmp.b #2
+	bcc .ok_100p
+	lda.b #0
+.ok_100p:
 	asl
 	adc.b #{stringid_iceless_normal}
 	rts
 .route_anyp:
 	lda.l {sram_config_route}
+	cmp.b #5
+	bcc .ok_anyp
+	lda.b #0
+.ok_anyp:
 	asl
 	adc.b #{stringid_mammoth_3rd_normal}
 	rts
@@ -1491,6 +1502,9 @@ nmi_hook:
 .load_after_7E_done:
 	// We enter with 16-bit A/X/Y.
 	// Restore the RNG value with what we saved before.
+	lda.l {sram_config_keeprng}
+	and.w #$00FF
+	bne .jmp_run_vm
 	lda.l {load_temporary_rng}
 	sta.l {rng_value}
 	bra .jmp_run_vm
@@ -1844,3 +1858,92 @@ config_right_hook:
 	sta.b $00
 	// Return to where the game wants us.
 	jml $80EBA0
+
+
+// God mode - infinite energy.
+{savepc}
+	{reorg $849D50}
+	jmp x_energy_hook
+{loadpc}
+x_energy_hook:
+	// Enter with A=8-bit.  Y can be destroyed.
+	// Save current energy in Y.
+	tay
+	// Check whether we have god mode enabled.
+	lda.l {sram_config_godmode}
+	beq .do_subtract
+	// God mode is enabled, but we don't want it to take effect if you're
+	// fighting Vile, otherwise you can't continue.
+	// Check whether X is fighting Vile (intro stage).
+	lda.w $7E0EA8       // Enemy slot 1 presence flag
+	beq .check_vile_2
+	lda.w $7E0EB2
+	cmp.b #$32          // Vile's object ID
+	beq .skip_subtract
+.check_vile_2:
+	// Check whether X is fighting Vile (Sigma 1 stage).
+	lda.w $7E0E68       // Enemy slot 2 presence flag
+	beq .skip_subtract
+	lda.w $7E0E72
+	cmp.b #$67          // Vile 2's object ID
+	bne .skip_subtract
+	// Deleted code - subtract weapon energy.
+.do_subtract:
+	tya
+	sec
+	sbc.w $7E0000
+	tay
+.skip_subtract:
+	// NOTE: Also sets zero and sign flags, which we need.
+	tya
+	// Return the caller.
+	jmp $849D54
+
+
+// God mode - infinite weapons.
+{savepc}
+	// Normal weapons.
+	{reorg $8194EA}
+	jsl weapon_energy_hook
+	nop
+	nop
+	// Charged weapons.
+	{reorg $81950C}
+	jsl weapon_energy_hook
+	nop
+	nop
+{loadpc}
+weapon_energy_hook:
+	// Enter with A=16-bit.
+	pha
+	// Check for god mod flag.
+	lda.l {sram_config_godmode}
+	and.w #$00FF
+	bne .skip_store
+	pla
+	// Deleted code.
+	ora.w #$C000
+	sta.w {weapon_power}, x
+	bra .skip_pla
+.skip_store:
+	pla
+.skip_pla:
+	rtl
+
+
+// Midpoint disable.
+{savepc}
+	{reorg $80E6A2}
+	jml midpoint_load_hook
+{loadpc}
+midpoint_load_hook:
+	// If midpoints are to be disabled, zero the midpoint flag.
+	sep #$20
+	lda.l {sram_config_midpointsoff}
+	beq .midpoints_on
+	stz.w {midpoint_flag}
+.midpoints_on:
+	// Deleted code
+	rep #$20
+	lda.w {midpoint_flag}
+	jml $80E6A7
