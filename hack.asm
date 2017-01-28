@@ -175,45 +175,45 @@ stage_choice_hack:
 	tax
 	lda.l .stage_map, x
 
-	sta.w {current_level}
+	// We're about to overwrite this memory, so we can use it as temporary
+	// storage for these coming lookups.
+	sta.w {state_vars}
+	stz.w {state_vars} + 1   // for 16-bit adc below
 	php
 	rep #$30
 	pha
 	phx
 	phy
-	sep #$20
 
-	// Special-case holding select.
-	// Check whether select is being held.
+	// Convert route to index into state_table_lookup.
+	sep #$20
+	lda.l {sram_config_category}
+	asl
+	asl  // clears carry since category is small
+	adc.l {sram_config_route}
+	asl
+
+	rep #$21  // clear carry
+	and.w #$00FF
 	tax
+	lda.l state_table_lookup, x
+
+	// After finding the right table, add 2 times the level.
+	adc.w {state_vars}
+	adc.w {state_vars}
+	tax
+
+	// Is select being held?
+	sep #$20
 	lda.w {controller_1_current}+1
 	and.b #$20
 	beq .not_holding_select
-
-	// Is this a level we care about?
-	txa
-	cmp.b #9  // Sigma 1
-	beq .special_sigma1
-	cmp.b #8  // Chill Penguin
-	beq .special_penguin
-	cmp.b #3  // Armored Armadillo
-	bne .not_holding_select
-	// Fall through if 3 (Armadillo).
-
-	// Load special data since select was held.
-.special_armadillo:
-	ldx.w #state_vars_armadillo_ex
-	bra .state_vars_copy
-.special_sigma1:
-	ldx.w #state_vars_sigma1_ex
-	bra .state_vars_copy
-.special_penguin:
-	ldx.w #state_vars_penguin_ex
-	bra .state_vars_copy
-
+	// Read the second element of the table when holding select.
+	inx
 .not_holding_select:
-	// Restore A after checking for select button.
-	txa
+
+	// Get the table index byte.
+	lda.l state_bank & $FF0000, x
 
 	// Copy the state variables in.
 	// Multiply by 48 = 3 * 16.  Do the math with the * 3 first because we
@@ -221,16 +221,16 @@ stage_choice_hack:
 	sta.b $02  // the replaced code zeros this anyway; see below.
 	asl  // clears carry because number is small enough (max is $0C)
 	adc.b $02
-	// The multiply by 3 won't overflow into the high byte (A was 00-0C), but
-	// this multiply by 16 can.
+	// The multiply by 3 won't overflow into the high byte (A was less than
+	// $55), but this multiply by 16 can.
 	rep #$30
 	and.w #$00FF
 	asl
 	asl
 	asl
-	asl  // clears carry because number is small enough (max is $0240)
+	asl  // clears carry because number is small enough (max is $0FF0)
 	// memcpy the state variables we want.
-	adc.w #state_vars_per_level
+	adc.w #state_table_base
 	tax
 
 .state_vars_copy:
@@ -241,7 +241,7 @@ stage_choice_hack:
 	lda.b #$30
 	sta.b $02
 .copy_loop:
-	lda.l state_vars_per_level & $FF0000, x
+	lda.l state_table_base & $FF0000, x
 	sta 0, y
 	inx
 	iny
@@ -478,79 +478,6 @@ escape_u_hack:
 
 // Added code/data
 {reorg $80FBD0}
-
-// Values of state_vars per level in a "waterful" run.
-state_vars_per_level:
-	// Intro stage
-	//db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00 \
-	//db $02,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00  > True values. Not using so doesn't repeat.
-	//db $00,$00,$00,$00,$00,$00,$00,$00,$DC,$00,$10,$00,$00,$00,$00,$00 /
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-	db $02,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-	db $00,$00,$00,$00,$00,$00,$00,$00,$DC,$00,$10,$04,$00,$00,$00,$00
-	// Launch Octopus
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$00,$00,$00,$01,$00
-	db $02,$00,$01,$8E,$8E,$83,$00,$00,$00,$00,$00,$00,$DC,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$DB,$1A,$04,$76,$00,$00,$00
-	// Sting Chameleon
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$00,$00,$00,$01,$00
-	db $02,$00,$01,$8E,$8E,$86,$00,$00,$DC,$00,$00,$00,$DC,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$DB,$1C,$04,$F6,$00,$00,$00
-	// Armored Armadillo
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$03,$00,$00,$00,$00,$00
-	db $02,$00,$01,$8E,$86,$80,$00,$00,$00,$00,$00,$00,$00,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$DB,$18,$04,$74,$00,$00,$00
-	// Flame Mammoth
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$04,$00,$00,$00,$00,$00
-	db $02,$00,$01,$82,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-	db $DC,$00,$00,$00,$DC,$00,$DC,$00,$DC,$19,$14,$04,$24,$00,$00,$00
-	// Storm Eagle
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$05,$00,$00,$00,$00,$00
-	db $02,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-	db $00,$00,$00,$00,$DC,$00,$DC,$00,$DC,$08,$12,$10,$20,$00,$00,$00
-	// Spark Mandrill
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$06,$00,$00,$00,$00,$00
-	db $02,$00,$01,$8E,$82,$00,$00,$00,$00,$00,$00,$00,$00,$00,$DC,$00
-	db $DC,$00,$00,$00,$DC,$00,$DC,$00,$DC,$9B,$16,$04,$34,$00,$00,$00
-	// Boomer Kuwanger
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$07,$00,$00,$00,$00,$00
-	db $02,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-	db $00,$00,$00,$00,$00,$00,$DC,$00,$DC,$08,$10,$04,$00,$00,$00,$00
-	// Chill Penguin
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$08,$00,$00,$00,$00,$00
-	db $02,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-	db $00,$00,$00,$00,$00,$00,$00,$00,$DC,$00,$10,$04,$00,$00,$00,$00
-	// Sigma 1 (Zero intro enabled)
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$09,$00,$40,$00,$85,$00
-	db $00,$00,$01,$8E,$8E,$8E,$8E,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$FF,$20,$04,$FF,$00,$00,$00
-	// Sigma 2
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$0A,$01,$C0,$03,$85,$00
-	db $00,$00,$01,$8E,$8E,$8E,$8E,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$FF,$20,$04,$FF,$00,$00,$00
-	// Sigma 3
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$0B,$02,$C0,$03,$85,$00
-	db $00,$00,$01,$8E,$8E,$8E,$8E,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$FF,$20,$04,$FF,$00,$00,$00
-	// Sigma 4
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$0C,$03,$C0,$03,$85,$00
-	db $00,$00,$01,$8E,$8E,$8E,$8E,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$FF,$20,$04,$FF,$00,$00,$00
-state_vars_penguin_ex:
-	// Heart (Chill Penguin)
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$08,$00,$40,$00,$00,$00
-	db $02,$00,$01,$8E,$8E,$88,$00,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$DF,$1E,$10,$FE,$00,$00,$00
-state_vars_armadillo_ex:
-	// Visits (Armored Armadillo)
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$03,$00,$40,$00,$01,$00
-	db $03,$00,$01,$8E,$8E,$8E,$00,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$DF,$20,$04,$FF,$00,$00,$00
-state_vars_sigma1_ex:
-	// Sigma 1 (Zero intro disabled)
-	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$09,$00,$C0,$00,$85,$00
-	db $00,$00,$01,$8E,$8E,$8E,$8E,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
-	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$FF,$20,$04,$FF,$00,$00,$00
 
 // Hook end of stage select BG3 tilemap rendering so we can change the stage select screen.
 {savepc}
@@ -2008,3 +1935,7 @@ play_music_hook:
 	lda $806B, y
 	// Return to play_music code.
 	jml $80879F
+
+
+// The state table for each level is in statetable.asm.
+incsrc "statetable.asm"
