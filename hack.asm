@@ -91,8 +91,10 @@ eval sram_validity $774000
 eval sram_saved_sp $774004
 eval sram_vm_return $774006
 eval sram_previous_command $774008
-eval sram_config_valid $776000
-eval sram_config_game $776004   // Main game config.  game_config_size bytes.
+// SRAM addresses for general config.  These are at lower addresses to support
+// emulators and cartridges that don't support 256 KB of SRAM.
+eval sram_config_valid $700100
+eval sram_config_game $700104   // Main game config.  game_config_size bytes.
 eval sram_config_extra {sram_config_game} + {game_config_size}
 eval sram_config_category {sram_config_extra} + 0
 eval sram_config_route {sram_config_extra} + 1
@@ -1121,7 +1123,6 @@ config_code_category:
 	lda.b {controller_1_new} + 1
 	and.b #$03
 	beq config_extra_toggle.no_change
-	sta.l $701234
 	// Zero route within category.
 	lda.b #0
 	sta.l {sram_config_route}
@@ -1707,11 +1708,25 @@ nmi_hook:
 // Returns whether configuration is saved in the zero flag.
 // Must be called with 16-bit A!
 is_config_saved:
+	// Check magic values.
 	lda.l {sram_config_valid}
 	cmp.w #{magic_config_tag_lo}
 	bne .not_saved
 	lda.l {sram_config_valid} + 2
 	cmp.w #{magic_config_tag_hi}
+	bne .not_saved
+
+	// Check for bad extra configuration.
+	// Loads both route and category since A is 16-bit.
+	lda.l {sram_config_category}
+	and.w #~($0301)
+	bne .not_saved
+	// These are simple Boolean flags.
+	lda.l {sram_config_midpointsoff}  // also sram_config_keeprng
+	and.w #~($0101)
+	bne .not_saved
+	lda.l {sram_config_musicoff}  // also sram_config_godmode
+	and.w #~($0101)
 .not_saved:
 	rts
 
@@ -1747,7 +1762,7 @@ config_init_hook:
 .extra_default_loop:
 	sta.l {sram_config_extra}, x
 	inx
-	cpx.b {sram_config_extra_size}
+	cpx.b #{sram_config_extra_size}
 	bne .extra_default_loop
 	rep #$30
 
