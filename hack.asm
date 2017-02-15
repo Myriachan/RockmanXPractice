@@ -16,8 +16,8 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 
 
 // Version tags
-eval version_major 1
-eval version_minor 4
+eval version_major 2
+eval version_minor 0
 eval version_revision 0
 // Constants
 eval stage_intro 0
@@ -581,28 +581,28 @@ config_screen_moves:
 	// First group
 	// JUMP (normal)
 	{reorg $869588}
-	dw $1284 >> 1
+	dw $1282 >> 1
 	// JUMP (highlighted)
 	{reorg $869591}
-	dw $1284 >> 1
+	dw $1282 >> 1
 	// SHOT (normal)
 	{reorg $86959A}
-	dw $1244 >> 1
+	dw $1242 >> 1
 	// SHOT (highlighted)
 	{reorg $8695A3}
-	dw $1244 >> 1
+	dw $1242 >> 1
 	// SELECT_R (normal)
 	{reorg $8695C6}
-	dw $1344 >> 1
+	dw $1342 >> 1
 	// SELECT_R (highlighted)
 	{reorg $8695D3}
-	dw $1344 >> 1
+	dw $1342 >> 1
 	// MENU (normal)
 	{reorg $8695E0}
-	dw $1384 >> 1
+	dw $1382 >> 1
 	// MENU (highlighted)
 	{reorg $8695E9}
-	dw $1384 >> 1
+	dw $1382 >> 1
 	// EXIT (normal)
 	{reorg $8695F2}
 	dw $15AC >> 1
@@ -611,42 +611,42 @@ config_screen_moves:
 	dw $15AC >> 1
 	// BGM (normal)
 	{reorg $869604}
-	dw $1644 >> 1
+	dw $1642 >> 1
 	// BGM (highlighted)
 	{reorg $86960C}
-	dw $1644 >> 1
+	dw $1642 >> 1
 	// S.E. (normal)
 	{reorg $869614}
-	dw $1684 >> 1
+	dw $1682 >> 1
 	// S.E. (highlighted)
 	{reorg $86961D}
-	dw $1684 >> 1
+	dw $1682 >> 1
 	// DASH (normal)
 	{reorg $869626}
-	dw $12C4 >> 1
+	dw $12C2 >> 1
 	// DASH (highlighted)
 	{reorg $86962F}
-	dw $12C4 >> 1
+	dw $12C2 >> 1
 
 	// Second group
 	// " STEREO " (normal)
 	{reorg $86989F}
-	dw $14D6 >> 1
+	dw $14D4 >> 1
 	// Also overwrite string to move spaces
 	db "STEREO  "
 	// " STEREO " (highlighted)
 	{reorg $8698AC}
-	dw $14D6 >> 1
+	dw $14D4 >> 1
 	// Also overwrite string to move spaces
 	db "STEREO  "
 	// "MONAURAL" (normal)
 	{reorg $8698B9}
-	dw $14D6 >> 1
+	dw $14D4 >> 1
 	// Also overwrite string to rename "MONO"
 	db "MONO    "
 	// "MONAURAL" (highlighted)
 	{reorg $8698C6}
-	dw $14D6 >> 1
+	dw $14D4 >> 1
 	// Also overwrite string to rename "MONO"
 	db "MONO    "
 
@@ -674,14 +674,14 @@ config_screen_moves:
 	// Change "SELECT_L" to "SEL_L".
 	{reorg $8695AA}
 	db .select_l1_end - .select_l1_begin, $20
-	dw $1304 >> 1
+	dw $1302 >> 1
 .select_l1_begin:
 	db "SEL_L"
 .select_l1_end:
 	db 0
 	{reorg $8695B7}
 	db .select_l2_end - .select_l2_begin, $2C
-	dw $1304 >> 1
+	dw $1302 >> 1
 .select_l2_begin:
 	db "SEL_L"
 .select_l2_end:
@@ -690,14 +690,14 @@ config_screen_moves:
 	// Change "SELECT_R" to "SEL_R".
 	{reorg $8695C4}
 	db .select_r1_end - .select_r1_begin, $20
-	dw $1344 >> 1
+	dw $1342 >> 1
 .select_r1_begin:
 	db "SEL_R"
 .select_r1_end:
 	db 0
 	{reorg $8695D1}
 	db .select_r2_end - .select_r2_begin, $2C
-	dw $1344 >> 1
+	dw $1342 >> 1
 .select_r2_begin:
 	db "SEL_R"
 .select_r2_end:
@@ -731,41 +731,47 @@ string_option_titles:
 	{option_string .key_config, "KEY CONFIG", $11C6, $38, 0}
 	{option_string .sound_mode, "SOUND MODE", $1446, $38, 0}
 	{option_string .sound_test, "SOUND TEST", $15C6, $38, 0}
-	{option_string .route, "ROUTE", $11EC, $38, 0}
-	{option_string .misc, "MISC.", $136C, $38, 0}
+	{option_string .route, "ROUTE", $11EA, $38, 0}
+	{option_string .misc, "MISC.", $13AA, $38, 0}
 	db 0
 
 // Extra strings we're adding.
-	{option_string_pair string_anypercent, "ANY`", $1266}
-	{option_string_pair string_100percent, "100`", $1266}
+	{option_string_pair string_category, "CATEGORY", $1264}
+	{option_string string_anypercent, "ANY`", $1276, $20, 1}
+	{option_string string_100percent, "100`", $1276, $20, 1}
 
-	{option_string_pair string_mammoth_3rd, "MAMMOTH 3RD", $12A6}
-	{option_string_pair string_mammoth_4th, "MAMMOTH 4TH", $12A6}
-	{option_string_pair string_mammoth_5th, "MAMMOTH 5TH", $12A6}
-	{option_string_pair string_mammoth_6th, "MAMMOTH 6TH", $12A6}
-	{option_string_pair string_mammoth_7th, "MAMMOTH 7TH", $12A6}
-	{option_string_pair string_mammoth_8th, "MAMMOTH 8TH", $12A6}
+	{option_string_pair string_mammoth, "MAMMOTH", $12A4}
+	{option_string string_mammoth_5th, "5TH ", $12B6, $20, 1}
+	{option_string string_mammoth_6th, "6TH ", $12B6, $20, 1}
+	{option_string string_mammoth_7th, "7TH ", $12B6, $20, 1}
+	{option_string string_mammoth_8th, "8TH ", $12B6, $20, 1}
+	{option_string_pair string_empty_route2, "        ", $12E4}
+	{option_string string_empty_route2_setting, "    ", $12F6, $20, 1}
 
-	{option_string_pair string_iceless,     "ICELESS    ", $12A6}
-	{option_string_pair string_waterless,   "WATERLESS  ", $12A6}
+	{option_string_pair string_ice, "ICE...  ", $12A4}
+	{option_string string_iceless, "LESS", $12B6, $20, 1}
+	{option_string string_iceful, "FUL ", $12B6, $20, 1}
+	{option_string_pair string_water, "WATER...", $12E4}
+	{option_string string_waterless, "LESS", $12F6, $20, 1}
+	{option_string string_waterful, "FUL ", $12F6, $20, 1}
 
-	{option_string_pair string_output, "OUTPUT", $14C4}
+	{option_string_pair string_output, "OUTPUT", $14C2}
 
-	{option_string_pair string_music, "MUSIC", $1504}
-	{option_string string_music_on,  "ON ", $1516, $20, 1}
-	{option_string string_music_off, "OFF", $1516, $20, 1}
+	{option_string_pair string_music, "MUSIC", $1502}
+	{option_string string_music_on,  "ON ", $1514, $20, 1}
+	{option_string string_music_off, "OFF", $1514, $20, 1}
 
-	{option_string_pair string_midpoints, "MIDPOINT", $13E6}
-	{option_string string_midpoints_on,  "ON ", $13F8, $20, 1}
-	{option_string string_midpoints_off, "OFF", $13F8, $20, 1}
+	{option_string_pair string_midpoints, "MIDPOINT", $1424}
+	{option_string string_midpoints_on,  "ON ", $1436, $20, 1}
+	{option_string string_midpoints_off, "OFF", $1436, $20, 1}
 
-	{option_string_pair string_keeprng, "KEEP RNG", $1426}
-	{option_string string_keeprng_on, "ON ", $1438, $20, 1}
-	{option_string string_keeprng_off, "OFF", $1438, $20, 1}
+	{option_string_pair string_keeprng, "KEEP RNG", $1464}
+	{option_string string_keeprng_on, "ON ", $1476, $20, 1}
+	{option_string string_keeprng_off, "OFF", $1476, $20, 1}
 
-	{option_string_pair string_godmode, "GODMODE", $1466}
-	{option_string string_godmode_on, "ON ", $1478, $20, 1}
-	{option_string string_godmode_off, "OFF", $1478, $20, 1}
+	{option_string_pair string_godmode, "GODMODE", $14A4}
+	{option_string string_godmode_on, "ON ", $14B6, $20, 1}
+	{option_string string_godmode_off, "OFF", $14B6, $20, 1}
 
 // I'm too lazy to rework the compressed font, so I use this to overwrite
 // the ` character in VRAM.  The field used for the "attribute" of the
@@ -801,28 +807,29 @@ string_table:
 	endmacro
 
 	{stringtableentry percent_sign_bitmap}
-	{stringtableentry 100percent_normal}
-	{stringtableentry 100percent_highlighted}
-	{stringtableentry anypercent_normal}
-	{stringtableentry anypercent_highlighted}
-	{stringtableentry iceless_normal}
-	{stringtableentry iceless_highlighted}
-	{stringtableentry waterless_normal}
-	{stringtableentry waterless_highlighted}
-	{stringtableentry mammoth_3rd_normal}
-	{stringtableentry mammoth_3rd_highlighted}
-	{stringtableentry mammoth_4th_normal}
-	{stringtableentry mammoth_4th_highlighted}
-	{stringtableentry mammoth_5th_normal}
-	{stringtableentry mammoth_5th_highlighted}
-	{stringtableentry mammoth_6th_normal}
-	{stringtableentry mammoth_6th_highlighted}
-	{stringtableentry mammoth_7th_normal}
-	{stringtableentry mammoth_7th_highlighted}
-	{stringtableentry mammoth_8th_normal}
-	{stringtableentry mammoth_8th_highlighted}
+	{stringtableentry 100percent}
+	{stringtableentry anypercent}
+	{stringtableentry ice_normal}
+	{stringtableentry ice_highlighted}
+	{stringtableentry iceless}
+	{stringtableentry iceful}
+	{stringtableentry water_normal}
+	{stringtableentry water_highlighted}
+	{stringtableentry waterful}
+	{stringtableentry waterless}
+	{stringtableentry mammoth_normal}
+	{stringtableentry mammoth_highlighted}
+	{stringtableentry mammoth_5th}
+	{stringtableentry mammoth_6th}
+	{stringtableentry mammoth_7th}
+	{stringtableentry mammoth_8th}
+	{stringtableentry empty_route2_normal}
+	{stringtableentry empty_route2_highlighted}
+	{stringtableentry empty_route2_setting}
 	{stringtableentry output_normal}
 	{stringtableentry output_highlighted}
+	{stringtableentry category_normal}
+	{stringtableentry category_highlighted}
 	{stringtableentry midpoints_normal}
 	{stringtableentry midpoints_highlighted}
 	{stringtableentry midpoints_on}                 // on, off -> option inverted
@@ -897,11 +904,19 @@ config_menu_extra_string_table:
 	db {stringid_godmode_normal}
 	db {stringid_music_normal}
 	db $00  // flush
+	db {stringid_category_normal}
+	db $FF
+	dw config_get_stringid_route1_label
+	db $FF
+	dw config_get_stringid_route2_label
+	db $00  // flush
 	// Extra option values.
 	db $FF
 	dw config_get_stringid_category
 	db $FF
-	dw config_get_stringid_route
+	dw config_get_stringid_route1
+	db $FF
+	dw config_get_stringid_route2
 	db $FF
 	dw config_get_stringid_midpointsoff
 	db $FF
@@ -932,23 +947,42 @@ trampoline_8089CA:
 
 // Functions to get the string to show for the current setting.
 // We enter each function with carry clear for convenience.
+
+// Gets string ID to show for the top route option's label.
+config_get_stringid_route1_label:
+	lda.l {sram_config_category}
+	and.b #$01
+	beq .100p
+	lda.b #{stringid_mammoth_normal}
+	rts
+.100p:
+	lda.b #{stringid_ice_normal}
+	rts
+
+// Gets string ID to show for the bottom route option's label.
+config_get_stringid_route2_label:
+	lda.l {sram_config_category}
+	and.b #$01
+	beq .100p
+	lda.b #{stringid_empty_route2_normal}
+	rts
+.100p:
+	lda.b #{stringid_water_normal}
+	rts
+
 config_get_stringid_category:
 	lda.l {sram_config_category}
 	and.b #$01
-	asl
-	adc.b #{stringid_100percent_normal}
+	adc.b #{stringid_100percent}
 	rts
 
-config_get_stringid_route:
+config_get_stringid_route1:
 	lda.l {sram_config_category}
 	bne .route_anyp
 	lda.l {sram_config_route}
-	cmp.b #2
-	bcc .ok_100p
-	lda.b #0
-.ok_100p:
-	asl
-	adc.b #{stringid_iceless_normal}
+	lsr
+	and.b #1
+	adc.b #{stringid_iceless}
 	rts
 .route_anyp:
 	lda.l {sram_config_route}
@@ -956,8 +990,18 @@ config_get_stringid_route:
 	bcc .ok_anyp
 	lda.b #0
 .ok_anyp:
-	asl
-	adc.b #{stringid_mammoth_3rd_normal}
+	adc.b #{stringid_mammoth_5th}
+	rts
+
+config_get_stringid_route2:
+	lda.l {sram_config_category}
+	bne .route_anyp
+	lda.l {sram_config_route}
+	and.b #1
+	adc.b #{stringid_waterful}
+	rts
+.route_anyp:
+	lda.b #{stringid_empty_route2_setting}
 	rts
 
 config_get_stringid_midpointsoff:
@@ -1010,6 +1054,7 @@ config_unhighlighted_stringids:
 	db {stringid_music_normal}
 	db $29   // BGM
 	db $2B   // S.E.
+	db {stringid_category_normal}
 	db {stringid_midpoints_normal}
 	db {stringid_keeprng_normal}
 	db {stringid_godmode_normal}
@@ -1062,6 +1107,7 @@ config_option_jump_table:
 	dl config_code_musicoff - 1
 	dl {rom_config_bgm} - 1
 	dl {rom_config_se} - 1
+	dl config_code_category - 1
 	dl config_code_midpoint - 1
 	dl config_code_keeprng - 1
 	dl config_code_godmode - 1
@@ -1069,6 +1115,56 @@ config_option_jump_table:
 .end:
 
 
+// Config code for "category" route option.
+config_code_category:
+	// Was left or right pressed?
+	lda.b {controller_1_new} + 1
+	and.b #$03
+	beq config_extra_toggle.no_change
+	sta.l $701234
+	// Zero route within category.
+	lda.b #0
+	sta.l {sram_config_route}
+	// Change routes.
+	lda.l {sram_config_category}
+	eor.b #1
+	sta.l {sram_config_category}
+	// Draw new strings appropriate to category.
+	// (Multiply by 5 here.)
+	asl
+	asl
+	adc.l {sram_config_category}
+	tax
+	ldy.b #0
+	// Draw 5 strings.
+.draw_loop:
+	lda.l .string_list, x
+	phx
+	phy
+	jsl trampoline_8089CA
+	ply
+	plx
+	inx
+	iny
+	cpy.b #5
+	bne .draw_loop
+	// Done.
+	bra config_extra_toggle.no_change
+.string_list:
+	// String IDs for switching to 100%.
+	db {stringid_100percent}
+	db {stringid_ice_normal}
+	db {stringid_iceless}
+	db {stringid_water_normal}
+	db {stringid_waterful}
+	// String IDs for switching to Any%.
+	db {stringid_anypercent}
+	db {stringid_mammoth_normal}
+	db {stringid_mammoth_5th}
+	db {stringid_empty_route2_normal}
+	db {stringid_empty_route2_setting}
+
+// Config code for simple toggles.
 config_code_musicoff:
 	ldx.b #{sram_config_musicoff} - {sram_config_extra}
 	ldy.b #{stringid_music_on}
