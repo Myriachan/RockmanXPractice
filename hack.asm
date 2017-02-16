@@ -984,6 +984,7 @@ config_get_stringid_route1:
 	lda.l {sram_config_route}
 	lsr
 	and.b #1
+	clc
 	adc.b #{stringid_iceless}
 	rts
 .route_anyp:
@@ -1000,6 +1001,7 @@ config_get_stringid_route2:
 	bne .route_anyp
 	lda.l {sram_config_route}
 	and.b #1
+	clc
 	adc.b #{stringid_waterful}
 	rts
 .route_anyp:
@@ -1057,6 +1059,8 @@ config_unhighlighted_stringids:
 	db $29   // BGM
 	db $2B   // S.E.
 	db {stringid_category_normal}
+	db {stringid_ice_normal}
+	db {stringid_water_normal}
 	db {stringid_midpoints_normal}
 	db {stringid_keeprng_normal}
 	db {stringid_godmode_normal}
@@ -1110,6 +1114,8 @@ config_option_jump_table:
 	dl {rom_config_bgm} - 1
 	dl {rom_config_se} - 1
 	dl config_code_category - 1
+	dl config_code_route1 - 1
+	dl config_code_route2 - 1
 	dl config_code_midpoint - 1
 	dl config_code_keeprng - 1
 	dl config_code_godmode - 1
@@ -1122,13 +1128,14 @@ config_code_category:
 	// Was left or right pressed?
 	lda.b {controller_1_new} + 1
 	and.b #$03
-	beq config_extra_toggle.no_change
+	beq .no_change
 	// Zero route within category.
 	lda.b #0
 	sta.l {sram_config_route}
-	// Change routes.
+	// Change categories.
 	lda.l {sram_config_category}
 	eor.b #1
+	and.b #1
 	sta.l {sram_config_category}
 	// Draw new strings appropriate to category.
 	// (Multiply by 5 here.)
@@ -1150,7 +1157,8 @@ config_code_category:
 	cpy.b #5
 	bne .draw_loop
 	// Done.
-	bra config_extra_toggle.no_change
+.no_change:
+	jmp config_extra_toggle.no_change
 .string_list:
 	// String IDs for switching to 100%.
 	db {stringid_100percent}
@@ -1164,6 +1172,65 @@ config_code_category:
 	db {stringid_mammoth_5th}
 	db {stringid_empty_route2_normal}
 	db {stringid_empty_route2_setting}
+
+// Config code for first route option (100%: "ICE", Any%: "MAMMOTH").
+config_code_route1:
+	// Any% or 100%?
+	lda.l {sram_config_category}
+	bne .anypercent
+	// 100% case.
+	// Was left or right pressed?
+	lda.b {controller_1_new} + 1
+	and.b #$03
+	beq .no_change
+	// 100% case: toggle iceless.
+	lda.l {sram_config_route}
+	eor.b #$02
+	and.b #$03
+	sta.l {sram_config_route}
+	// Get string to draw and draw it.
+.draw_string_route1:
+	jsr config_get_stringid_route1
+.draw_string:
+	jmp config_extra_toggle.draw_string
+.no_change:
+	jmp config_extra_toggle.no_change
+.anypercent:
+	// Any% case.
+	// Was left or right pressed?
+	lda.b {controller_1_new} + 1
+	and.b #$03
+	beq .no_change   // neither pressed
+	cmp.b #$03
+	beq .no_change   // both left and right pressed; do nothing
+	// Check for right.
+	lsr
+	lda.l {sram_config_route}
+	bcc .left
+	// Right pressed.
+	inc
+	bra .update
+.left:
+	dec
+.update:
+	and.b #$03
+	sta.l {sram_config_route}
+	// Decide string to show.
+	bra .draw_string_route1
+
+// Config code for second route option (100% only: waterful/less)
+config_code_route2:
+	// Was left or right pressed?
+	lda.b {controller_1_new} + 1
+	and.b #$03
+	beq config_code_route1.no_change
+	// Toggle waterful.
+	lda.l {sram_config_route}
+	eor.b #$01
+	sta.l {sram_config_route}
+	// Decide string to show.
+	jsr config_get_stringid_route2
+	bra config_code_route1.draw_string
 
 // Config code for simple toggles.
 config_code_musicoff:
@@ -1205,6 +1272,7 @@ config_extra_toggle:
 	iny
 .zero:
 	tya
+.draw_string:
 	jsl trampoline_8089CA
 .no_change:
 	jsl trampoline_808100
