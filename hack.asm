@@ -508,7 +508,7 @@ stage_select_render_hook:
 	// OK, this is what we wanted to hook.
 	// NOTE: We don't need to restore A back to 8-bit, because 8080F8 does sep #$30.
 	rep #$20
-	lda.w #$3431     // ASCII character "1"
+	lda.w #$3431     // ASCII character "1" in yellow palette
 	sta.l $7F0190
 	inc
 	sta.l $7F01B4
@@ -516,6 +516,10 @@ stage_select_render_hook:
 	sta.l $7F0610
 	inc
 	sta.l $7F0634
+
+	lda.l {sram_config_category}
+	and.w #$00FF
+	bne .skip_hold_select_message
 
 	phx
 	phy
@@ -538,6 +542,7 @@ stage_select_render_hook:
 	bne .string_loop
 	ply
 	plx
+.skip_hold_select_message:
 
 .not_stage_select:
 	// jmp instead of jml because our code is in the same bank.
@@ -654,24 +659,27 @@ config_screen_moves:
 
 	// Button names
 	{reorg $80ECE3}
-	lda.w #$1252 >> 1
+	lda.w #$1254 >> 1
 	{reorg $80ECF3}
-	lda.w #$1292 >> 1
+	lda.w #$1294 >> 1
 	{reorg $80ED03}
-	lda.w #$12D2 >> 1
+	lda.w #$12D4 >> 1
 	{reorg $80ED13}
-	lda.w #$1312 >> 1
+	lda.w #$1314 >> 1
 	{reorg $80ED23}
-	lda.w #$1352 >> 1
+	lda.w #$1354 >> 1
 	{reorg $80ED33}
-	lda.w #$1392 >> 1
+	lda.w #$1394 >> 1
+	{reorg $86BCE8}
+	// Left-align button names
+	db "B     Y     A     X     L     R     SELECTSTART *     "
 
 	// Song number after "BGM".
 	{reorg $80EDB9}
-	lda.w #$1656 >> 1
+	lda.w #$1654 >> 1
 	// Effect number after "S.E."
 	{reorg $80EDFB}
-	lda.w #$1696 >> 1
+	lda.w #$1694 >> 1
 
 	// Change "SELECT_L" to "SEL_L".
 	{reorg $8695AA}
@@ -933,11 +941,11 @@ config_menu_extra_string_table:
 .end:
 
 
-// Trampoline for calling $808100
+// Trampoline for calling $808100  (flush string draw buffer?)
 trampoline_808100:
 	pea ({rom_rtl_instruction} - 1) & 0xFFFF
 	jml $808100
-// Trampoline for calling $8089CA
+// Trampoline for calling $8089CA  (draw string)
 trampoline_8089CA:
 	pea ({rom_rtl_instruction} - 1) & 0xFFFF
 	jml $8089CA
@@ -1038,11 +1046,11 @@ config_get_stringid_godmode:
 {savepc}
 	// Use our alternate table.
 	{reorg $80EA52}
-	lda.w config_unhighlighted_stringids, x
+	jsr config_string_table_lookup_thunk
 	{reorg $80EAFC}
-	lda.w config_unhighlighted_stringids, x
+	jsr config_string_table_lookup_thunk
 	{reorg $80EB19}
-	lda.w config_unhighlighted_stringids, x
+	jsr config_string_table_lookup_thunk
 	// Don't special-case stereo/mono when highlighting.
 	{reorg $80EB1F}
 	bra $80EB2F
@@ -1060,16 +1068,53 @@ config_unhighlighted_stringids:
 	db $2B   // S.E.
 	db {stringid_category_normal}
 	db {stringid_ice_normal}
+.route2:
 	db {stringid_water_normal}
 	db {stringid_midpoints_normal}
 	db {stringid_keeprng_normal}
 	db {stringid_godmode_normal}
 	db $27   // EXIT
 .end:
+// Routine to look up the "unhighlighted" string ID.
+config_string_table_lookup:
+	// Load from the alternate table.
+	lda.w config_unhighlighted_stringids, x
+	// Check for special cases.
+	cmp.b #{stringid_ice_normal}
+	beq .special_route1
+	cmp.b #{stringid_water_normal}
+	beq .special_route2
+	// Not special.
+	rtl
+.special_route1:
+	// Decide whether to show "ICE..." here or "MAMMOTH".
+	lda.l {sram_config_category}
+	beq .ice
+	lda.b #{stringid_mammoth_normal}
+	rtl
+.ice:
+	lda.b #{stringid_ice_normal}
+	rtl
+.special_route2:
+	// Decide whether to show "WATER..." here or blank.
+	lda.l {sram_config_category}
+	beq .water
+	lda.b #{stringid_empty_route2_normal}
+	rtl
+.water:
+	lda.b #{stringid_water_normal}
+	rtl
 
 
 // Config menu code hacks.
 {savepc}
+	// Hook incrementing and decrementing so that we can skip the second
+	// route option when it's disabled.
+	{reorg $80EAB8}
+	jml config_hook_increment
+	{reorg $80EAC7}
+	jml config_hook_decrement
+
 	// Increase number of options.
 	{reorg $80EADB}
 	lda.b #((config_option_jump_table.end - config_option_jump_table) / 3) - 1
@@ -1079,6 +1124,11 @@ config_unhighlighted_stringids:
 	// Don't handle stereo/mono specially in the above table.
 	{reorg $80EB01}
 	bra $80EB11
+	// Thunk to call our code for alternate string loads, used by
+	// config_unhighlighted_stringids.  Needs to be in bank 80.
+config_string_table_lookup_thunk:
+	jsl config_string_table_lookup
+	rts
 
 	// Use unhighlighted string IDs for STEREO/MONO.
 	{reorg $80EBFC}
@@ -1121,6 +1171,36 @@ config_option_jump_table:
 	dl config_code_godmode - 1
 	dl {rom_config_exit} - 1
 .end:
+
+
+// Skip over second route option when it's disabled.
+config_hook_increment:
+	lda.l {config_selected_option}
+	inc
+	cmp.b #config_unhighlighted_stringids.route2 - config_unhighlighted_stringids
+	beq .maybe_skip
+.write_return:
+	sta.l {config_selected_option}
+	jml $80EAD5
+.maybe_skip:
+	// Decide whether to skip
+	lda.l {sram_config_category}
+	and.b #1
+	clc
+	adc.b #config_unhighlighted_stringids.route2 - config_unhighlighted_stringids
+	bra .write_return
+
+config_hook_decrement:
+	lda.l {config_selected_option}
+	dec
+	cmp.b #config_unhighlighted_stringids.route2 - config_unhighlighted_stringids
+	bne config_hook_increment.write_return
+	// Decide whether to skip
+	lda.l {sram_config_category}
+	eor.b #1
+	lsr
+	adc.b #config_unhighlighted_stringids.route2 - config_unhighlighted_stringids - 1
+	bra config_hook_increment.write_return
 
 
 // Config code for "category" route option.
