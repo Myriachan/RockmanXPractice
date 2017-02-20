@@ -2101,24 +2101,8 @@ x_energy_hook:
 	tay
 	// Check whether we have god mode enabled.
 	lda.l {sram_config_godmode}
-	beq .do_subtract
-	// God mode is enabled, but we don't want it to take effect if you're
-	// fighting Vile, otherwise you can't continue.
-	// Check whether X is fighting Vile (intro stage).
-	lda.w $7E0EA8       // Enemy slot 1 presence flag
-	beq .check_vile_2
-	lda.w $7E0EB2
-	cmp.b #$32          // Vile's object ID
-	beq .skip_subtract
-.check_vile_2:
-	// Check whether X is fighting Vile (Sigma 1 stage).
-	lda.w $7E0E68       // Enemy slot 2 presence flag
-	beq .skip_subtract
-	lda.w $7E0E72
-	cmp.b #$67          // Vile 2's object ID
 	bne .skip_subtract
-	// Deleted code - subtract weapon energy.
-.do_subtract:
+	// Deleted code - subtract X energy.
 	tya
 	sec
 	sbc.w $7E0000
@@ -2146,7 +2130,7 @@ x_energy_hook:
 weapon_energy_hook:
 	// Enter with A=16-bit.
 	pha
-	// Check for god mod flag.
+	// Check for god mode flag.
 	lda.l {sram_config_godmode}
 	and.w #$00FF
 	bne .skip_store
@@ -2159,6 +2143,35 @@ weapon_energy_hook:
 	pla
 .skip_pla:
 	rtl
+
+
+// God mode - hack Vile AI to shoot trapping shot regardless of X's health
+// while in god mode.
+{savepc}
+	// Intro stage Vile.
+	{reorg $83D718}
+	jml vile_intro_ai_hack
+	// Sigma stage Vile.
+	{reorg $83EE86}
+	jml vile_sigma1_ai_hack
+{loadpc}
+vile_intro_ai_hack:
+	cmp.b #4
+	bcc .shoot_trap
+	lda.l {sram_config_godmode}
+	bne .shoot_trap
+	jml $83D71E
+.shoot_trap:
+	jml $83D71C
+
+vile_sigma1_ai_hack:
+	cmp.b #7
+	bcc .shoot_trap
+	lda.l {sram_config_godmode}
+	bne .shoot_trap
+	jml $83EE8C
+.shoot_trap:
+	jml $83EE8A
 
 
 // Midpoint disable.
