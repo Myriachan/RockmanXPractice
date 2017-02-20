@@ -42,6 +42,7 @@ eval screen_control_shadow $7E00B3
 eval nmi_control_shadow $7E00C2
 eval hdma_control_shadow $7E00C3
 eval rng_value $7E0BA6
+eval controller_1_disable $7E1F48
 eval state_vars $7E1F70
 eval current_level $7E1F7A
 eval life_count $7E1F80
@@ -68,7 +69,7 @@ eval rom_play_sound $8088B6
 eval rom_rtl_instruction $808798  // last instruction of rom_play_sound
 eval rom_rts_instruction $8087D0  // last instruction of some part of rom_play_music
 eval rom_nmi_after_pushes $808173
-eval rom_nmi_after_controller $8081C4
+eval rom_nmi_after_controller $8081DD
 eval rom_config_loop $80EAAA
 eval rom_config_button $80EB55
 eval rom_config_stereo $80EBE8
@@ -1359,10 +1360,58 @@ config_extra_toggle:
 	jml {rom_config_loop}
 
 
+//
 // Saved state hacks
+//
 {savepc}
-	{reorg $8081AB}
+//	{reorg $8081A9}
+//	jml nmi_hook
+	{reorg $8081A3}
+nmi_patch:
+	// We use controller 2's state, which is ignored by the game unless debug
+	// modes are enabled (which we don't do).  Controller 2 state is the state
+	// of the "real" controller.  When the game disables the controller, we
+	// simply don't copy controller 2 to controller 1.
+
+	// Move previous frame's controller data to the previous field.
+	lda.b {controller_2_current}
+	sta.b {controller_2_previous}
+
+	// Read controller 1 port.  This is optimized from the original slightly.
+	lda.w $4218
+	bit.w #$000F
+	beq .controller_valid
+	lda.w #0
+.controller_valid:
+
+	// Update controller 2 variables, which is where we store the actual
+	// controller state.
+	sta.b {controller_2_current}
+	eor.b {controller_2_previous}
+	and.b {controller_2_current}
+	sta.b {controller_2_new}
+
+	// If controller is enabled, copy 2's state to 1's state.
+	lda.w {controller_1_disable}
+	and.w #$00FF
+	bne .controller_disabled
+	lda.b {controller_2_current}
+	sta.b {controller_1_current}
+	lda.b {controller_2_previous}
+	sta.b {controller_1_previous}
+	lda.b {controller_2_new}
+	sta.b {controller_1_new}
+.controller_disabled:
+
+	// Check for Select being held.  Jump to nmi_hook if so.
+	lda.b {controller_2_current}
+	bit.w #$2000
+	beq .resume_nmi
 	jml nmi_hook
+.resume_nmi:
+
+	// As of writing this, we have 4 bytes free here.
+	bra {rom_nmi_after_controller}
 {loadpc}
 
 {reorg $84EE00}
@@ -1376,32 +1425,10 @@ init_hook:
 	// Return to original code.
 	jml $808016
 
-// Called during NMI.
+// Called during NMI if select is being held.
 nmi_hook:
-	// Deleted code.
-	lda.b {controller_1_current}
-	sta.b {controller_1_previous}
-
-	// Read controller port.  This is optimized from the original slightly.
-	lda.w $4218
-	bit.w #$000F
-	beq .controller_valid
-	lda.w #0
-.controller_valid:
-
-	// Update controller variables.
-	sta.b {controller_1_current}
-	eor.b {controller_1_previous}
-	and.b {controller_1_current}
-	sta.b {controller_1_new}
-
-	// Check for Select being held.
-	lda.b {controller_1_current}
-	bit.w #$2000
-	beq .return_normal_no_rep
-
 	// Check for L or R newly being pressed.
-	lda.b {controller_1_new}
+	lda.b {controller_2_new}
 	and.w #$0030
 
 	// We now can execute slow code, because we know that the player is giving
@@ -1410,11 +1437,21 @@ nmi_hook:
 	// This is a command to us, so we want to hide the button press from the game.
 	tax
 	lda.w #$FFCF
-	and.b {controller_1_current}
-	sta.b {controller_1_current}
+	and.b {controller_2_current}
+	sta.b {controller_2_current}
 	lda.w #$FFCF
-	and.b {controller_1_new}
+	and.b {controller_2_new}
+	sta.b {controller_2_new}
+
+	// If controller data is enabled, copy these new fields, too.
+	lda.w {controller_1_disable}
+	and.w #$00FF
+	bne .controller_disabled
+	lda.b {controller_2_current}
+	sta.b {controller_1_current}
+	lda.b {controller_2_new}
 	sta.b {controller_1_new}
+.controller_disabled:
 	txa
 
 	// We need to suppress repeating ourselves when L or R is held down.
