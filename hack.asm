@@ -2092,11 +2092,16 @@ config_right_hook:
 
 // God mode - infinite energy.
 {savepc}
+	// Most types of damage.
 	{reorg $849D50}
-	jmp x_energy_hook
+	jsl x_energy_hook
+	// Other types of damage:
+	// - Spikes on sides of Boomer Kuwanger elevator.
+	// - Getting thrown into the ceiling by Boomer Kuwanger.
+	{reorg $849F59}
+	jsl x_energy_hook
 {loadpc}
 x_energy_hook:
-	// Enter with A=8-bit.  Y can be destroyed.
 	// Save current energy in Y.
 	tay
 	// Check whether we have god mode enabled.
@@ -2110,8 +2115,8 @@ x_energy_hook:
 .skip_subtract:
 	// NOTE: Also sets zero and sign flags, which we need.
 	tya
-	// Return the caller.
-	jmp $849D54
+	// Return to the caller.
+	rtl
 
 
 // God mode - infinite weapons.
