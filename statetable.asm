@@ -97,7 +97,23 @@ state_indexes_100p_iceless_waterless:
 	{state_index_single state_100p_shared_sigma3}
 	{state_index_single state_100p_shared_sigma4}
 
-	// Indexes into the table for 100% Iceful Waterful route.
+// Indexes into the table for 100% Iceless Chameleon 3rd route.
+state_indexes_100p_iceless_cham3rd:
+	{state_index_single state_shared_intro_stage}
+	{state_index_single state_100p_waterless_octopus}
+	{state_index_single state_100p_cham3rd_chameleon}
+	{state_index_revisit state_100p_waterless_armadillo, state_100p_shared_armadillo_revisit}
+	{state_index_single state_100p_cham3rd_mammoth}
+	{state_index_single state_100p_cham3rd_eagle}
+	{state_index_single state_100p_waterless_mandrill}
+	{state_index_single state_shared_kuwanger_2nd}
+	{state_index_revisit state_shared_penguin, state_100p_shared_penguin_revisit}
+	{state_index_revisit state_100p_shared_sigma1_zero_intro, state_100p_shared_sigma1_no_intro}
+	{state_index_single state_100p_shared_sigma2}
+	{state_index_single state_100p_shared_sigma3}
+	{state_index_single state_100p_shared_sigma4}
+
+// Indexes into the table for 100% Iceful Waterful route.
 state_indexes_100p_iceful_waterful:
 	{state_index_single state_shared_intro_stage}
 	{state_index_single state_100p_waterful_octopus}
@@ -286,6 +302,22 @@ state_100p_waterless_octopus:
 	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$00,$00,$00,$01,$00
 	db $03,$00,$01,$8E,$8E,$8E,$00,$00,$00,$00,$DC,$00,$DC,$00,$DC,$00
 	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$FF,$1C,$04,$7E,$00,$00,$00
+
+//
+// States for 100% Iceless Chameleon 3rd
+//
+state_100p_cham3rd_chameleon:
+	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$00,$00,$00,$00,$00
+	db $02,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	db $00,$00,$00,$00,$DC,$00,$DC,$00,$DC,$08,$12,$04,$20,$00,$00,$00
+state_100p_cham3rd_eagle:
+	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$05,$00,$00,$00,$00,$00
+	db $03,$00,$01,$00,$00,$00,$00,$00,$00,$00,$DC,$00,$00,$00,$00,$00
+	db $00,$00,$00,$00,$DC,$00,$DC,$00,$DC,$0C,$14,$04,$28,$00,$00,$00
+state_100p_cham3rd_mammoth:
+	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$04,$00,$00,$00,$00,$00
+	db $03,$00,$01,$8E,$00,$00,$00,$00,$00,$00,$DC,$00,$00,$00,$00,$00
+	db $DC,$00,$00,$00,$DC,$00,$DC,$00,$DC,$1D,$16,$04,$2C,$00,$00,$00
 
 //
 // Shared 100% states - when all routes merge after the 8 Mavericks.
