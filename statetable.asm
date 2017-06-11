@@ -27,6 +27,7 @@ state_table_lookup:
 	// 100%
 	dw state_indexes_100p_iceless_waterful
 	dw state_indexes_100p_iceless_waterless
+	dw state_indexes_100p_iceless_cham3rd
 	dw state_indexes_100p_iceful_waterful
 	dw state_indexes_100p_iceful_waterless
 	// Any%
@@ -34,6 +35,8 @@ state_table_lookup:
 	dw state_indexes_anyp_mammoth_6th
 	dw state_indexes_anyp_mammoth_7th
 	dw state_indexes_anyp_mammoth_8th
+	// stage_choice_hack considers each table to be 5 long, but if there is
+	// no way to access it, we don't need to fill in the last entry.
 
 
 // Places an entry in the index table that has no revisit.

@@ -17,8 +17,8 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 
 // Version tags
 eval version_major 2
-eval version_minor 0
-eval version_revision 1
+eval version_minor 1
+eval version_revision 0
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -28,8 +28,8 @@ eval stage_sigma4 12
 eval game_config_size $17
 eval magic_sram_tag_lo $4143  // Combined, these say "CATS"
 eval magic_sram_tag_hi $5354
-eval magic_config_tag_lo $4643  // Combined, these say "CFG1"
-eval magic_config_tag_hi $3147
+eval magic_config_tag_lo $4643  // Combined, these say "CFG2"
+eval magic_config_tag_hi $3247
 // RAM addresses
 eval title_screen_option $7E003C
 eval controller_1_current $7E00A7
@@ -190,10 +190,14 @@ stage_choice_hack:
 
 	// Convert route to index into state_table_lookup.
 	sep #$20
+	// Category times 5.
 	lda.l {sram_config_category}
 	asl
 	asl  // clears carry since category is small
+	adc.l {sram_config_category}  // carry still clear
+	// Plus route.
 	adc.l {sram_config_route}
+	// Multiply by 2 because each pointer is a word.
 	asl
 
 	rep #$21  // clear carry
@@ -765,6 +769,7 @@ string_option_titles:
 	{option_string_pair string_water, "WATER...", $12E4}
 	{option_string string_waterless, "LESS", $12F6, $20, 1}
 	{option_string string_waterful, "FUL ", $12F6, $20, 1}
+	{option_string string_chameleon_3rd, "C3RD", $12F6, $20, 1}
 
 	{option_string_pair string_output, "OUTPUT", $14C2}
 
@@ -828,6 +833,7 @@ string_table:
 	{stringtableentry water_highlighted}
 	{stringtableentry waterful}
 	{stringtableentry waterless}
+	{stringtableentry chameleon_3rd}
 	{stringtableentry mammoth_normal}
 	{stringtableentry mammoth_highlighted}
 	{stringtableentry mammoth_5th}
@@ -991,9 +997,11 @@ config_get_stringid_route1:
 	lda.l {sram_config_category}
 	bne .route_anyp
 	lda.l {sram_config_route}
-	lsr
-	and.b #1
-	clc
+	// 0=iceless waterful, 1=iceless waterless, 2=iceless cham3rd
+	// 3=iceful waterful, 4=iceful waterless
+	// Carry is set to whether route is 3 or higher.
+	cmp.b #3
+	lda.b #0
 	adc.b #{stringid_iceless}
 	rts
 .route_anyp:
@@ -1009,8 +1017,14 @@ config_get_stringid_route2:
 	lda.l {sram_config_category}
 	bne .route_anyp
 	lda.l {sram_config_route}
-	and.b #1
-	clc
+	// 0=iceless waterful, 1=iceless waterless, 2=iceless cham3rd
+	// 3=iceful waterful, 4=iceful waterless
+	cmp.b #3
+	bcc .route_iceless
+	// Carry is set here, so this subtract by 3 subtracts 3.
+	sbc.b #3
+.route_iceless:
+	clc   // FIXME: Is carry always set here?  If so, remove and subtract 1 from adc.
 	adc.b #{stringid_waterful}
 	rts
 .route_anyp:
@@ -1264,12 +1278,15 @@ config_code_route1:
 	lda.b {controller_1_new} + 1
 	and.b #$03
 	beq .no_change
-	// 100% case: toggle iceless.
+	// 100% case: toggle iceless.  Look up new value from table.
 	lda.l {sram_config_route}
-	eor.b #$02
-	and.b #$03
+	tax
+	lda.l .ice_setting_change_table, x
 	sta.l {sram_config_route}
-	// Get string to draw and draw it.
+	// Get strings to draw and draw them.
+	// We need to draw both the route1 and route2 strings.
+	jsr config_get_stringid_route2
+	jsl trampoline_8089CA
 .draw_string_route1:
 	jsr config_get_stringid_route1
 .draw_string:
@@ -1298,6 +1315,17 @@ config_code_route1:
 	sta.l {sram_config_route}
 	// Decide string to show.
 	bra .draw_string_route1
+.ice_setting_change_table:
+	// 0: iceless waterful -> iceful waterful
+	db 3
+	// 1: iceless waterless -> iceful waterless
+	db 4
+	// 2: iceless chameleon 3rd -> iceful waterless
+	db 4
+	// 3: iceful waterful -> iceless waterful
+	db 0
+	// 4: iceful waterless -> iceless waterless
+	db 1
 
 // Config code for second route option (100% only: waterful/less)
 config_code_route2:
@@ -1305,13 +1333,35 @@ config_code_route2:
 	lda.b {controller_1_new} + 1
 	and.b #$03
 	beq config_code_route1.no_change
-	// Toggle waterful.
+	cmp.b #$03
+	beq config_code_route1.no_change
+	// Determine left versus right.
+	lsr
 	lda.l {sram_config_route}
-	eor.b #$01
+	bcc .left
+	adc.b #5 - 1
+.left:
+	tax
+	lda.l .water_setting_change_table, x
 	sta.l {sram_config_route}
 	// Decide string to show.
 	jsr config_get_stringid_route2
 	bra config_code_route1.draw_string
+.water_setting_change_table:
+	// Pressing left.
+	// 0: iceless waterful -> iceless chameleon 3rd
+	// 1: iceless waterless -> iceless waterful
+	// 2: iceless chameleon 3rd -> iceless waterless
+	// 3: iceful waterful -> iceful waterless
+	// 4: iceful waterless -> iceful waterful
+	db 2, 0, 1, 4, 3
+	// Pressing right.
+	// 0: iceless waterful -> iceless waterless
+	// 1: iceless waterless -> iceless chameleon 3rd
+	// 2: iceless chameleon 3rd -> iceless waterful
+	// 3: iceful waterful -> iceful waterless
+	// 4: iceful waterless -> iceful waterful
+	db 1, 2, 0, 4, 3
 
 // Config code for simple toggles.
 config_code_musicoff:
