@@ -17,7 +17,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 
 // Version tags
 eval version_major 2
-eval version_minor 1
+eval version_minor 2
 eval version_revision 0
 // Constants
 eval stage_intro 0
@@ -28,8 +28,8 @@ eval stage_sigma4 12
 eval game_config_size $17
 eval magic_sram_tag_lo $4143  // Combined, these say "CATS"
 eval magic_sram_tag_hi $5354
-eval magic_config_tag_lo $4643  // Combined, these say "CFG2"
-eval magic_config_tag_hi $3247
+eval magic_config_tag_lo $4643  // Combined, these say "CFG3"
+eval magic_config_tag_hi $3347
 // RAM addresses
 eval title_screen_option $7E003C
 eval controller_1_current $7E00A7
@@ -76,6 +76,7 @@ eval rom_config_stereo $80EBE8
 eval rom_config_bgm $80EC30
 eval rom_config_se $80EC74
 eval rom_config_exit $80ECC0
+eval rom_rng_next $849086
 eval rom_default_config $86EE23
 // SRAM addresses for saved states
 eval sram_start $700000
@@ -103,7 +104,8 @@ eval sram_config_midpointsoff {sram_config_extra} + 2
 eval sram_config_keeprng {sram_config_extra} + 3
 eval sram_config_musicoff {sram_config_extra} + 4
 eval sram_config_godmode {sram_config_extra} + 5
-eval sram_config_extra_size 6   // adjust this as more are added
+eval sram_config_fixdrop {sram_config_extra} + 6
+eval sram_config_extra_size 7   // adjust this as more are added
 eval sram_size $080000
 
 
@@ -137,10 +139,20 @@ eval sram_size $080000
 	lda.b #$01
 	nop
 	nop
-	{reorg $84A471}
+	{reorg $84A471}  // $84A3BF checks for patches near here
 	lda.b #$01
 	nop
 	nop
+	// Patching check for the 84A471 check above.
+	// Break this only for the performance increase, since we modify
+	// this routine elsewhere.
+	{reorg $84A3BF}
+	rtl
+	// Mirroring checks.  Doubt we need to patch these.
+	//{reorg $81824A}
+	//bra $81824F
+	//{reorg $849FC3}
+	//bra $849FC8
 {loadpc}
 
 
@@ -789,6 +801,10 @@ string_option_titles:
 	{option_string string_godmode_on, "ON ", $14B6, $20, 1}
 	{option_string string_godmode_off, "OFF", $14B6, $20, 1}
 
+	{option_string_pair string_fixdrop, "FIX DROP", $14E4}
+	{option_string string_fixdrop_on, "ON ", $14F6, $20, 1}
+	{option_string string_fixdrop_off, "OFF", $14F6, $20, 1}
+
 // I'm too lazy to rework the compressed font, so I use this to overwrite
 // the ` character in VRAM.  The field used for the "attribute" of the
 // "text" just becomes the high byte of each pair of bytes.
@@ -863,6 +879,10 @@ string_table:
 	{stringtableentry godmode_highlighted}
 	{stringtableentry godmode_off}
 	{stringtableentry godmode_on}
+	{stringtableentry fixdrop_normal}
+	{stringtableentry fixdrop_highlighted}
+	{stringtableentry fixdrop_off}
+	{stringtableentry fixdrop_on}
 {loadpc}
 
 
@@ -922,6 +942,7 @@ config_menu_extra_string_table:
 	db {stringid_music_normal}
 	db $00  // flush
 	db {stringid_category_normal}
+	db {stringid_fixdrop_normal}
 	db $FF
 	dw config_get_stringid_route1_label
 	db $FF
@@ -944,6 +965,8 @@ config_menu_extra_string_table:
 	db $27  // EXIT
 	db $FF
 	dw config_get_stringid_godmode
+	db $FF
+	dw config_get_stringid_fixdrop
 	// We return to a flush call.
 .end:
 
@@ -1055,6 +1078,12 @@ config_get_stringid_godmode:
 	adc.b #{stringid_godmode_off}
 	rts
 
+config_get_stringid_fixdrop:
+	lda.l {sram_config_fixdrop}
+	and.b #$01
+	adc.b #{stringid_fixdrop_off}
+	rts
+
 
 // Mapping from config option ID to unhighlighted string ID.
 // Used for drawing the blue text when unhighlighting the previous option.
@@ -1088,6 +1117,7 @@ config_unhighlighted_stringids:
 	db {stringid_midpoints_normal}
 	db {stringid_keeprng_normal}
 	db {stringid_godmode_normal}
+	db {stringid_fixdrop_normal}
 	db $27   // EXIT
 .end:
 // Routine to look up the "unhighlighted" string ID.
@@ -1184,6 +1214,7 @@ config_option_jump_table:
 	dl config_code_midpoint - 1
 	dl config_code_keeprng - 1
 	dl config_code_godmode - 1
+	dl config_code_fixdrop - 1
 	dl {rom_config_exit} - 1
 .end:
 
@@ -1382,6 +1413,11 @@ config_code_keeprng:
 config_code_godmode:
 	ldx.b #{sram_config_godmode} - {sram_config_extra}
 	ldy.b #{stringid_godmode_off}
+	bra config_extra_toggle
+
+config_code_fixdrop:
+	ldx.b #{sram_config_fixdrop} - {sram_config_extra}
+	ldy.b #{stringid_fixdrop_off}
 	bra config_extra_toggle
 
 // Shared routines for simple toggles.
@@ -1962,6 +1998,9 @@ is_config_saved:
 	bne .not_saved
 	lda.l {sram_config_musicoff}  // also sram_config_godmode
 	and.w #~($0101)
+	bne .not_saved
+	lda.l {sram_config_fixdrop} - 1  // also sram_config_godmode (because 16-bit A)
+	and.w #~($0101)
 .not_saved:
 	rts
 
@@ -2248,6 +2287,8 @@ midpoint_load_hook:
 
 
 // Music disable.
+// FIXME: Use volume control to disable music, so that the lag from changing
+// songs is just as slow.
 {savepc}
 	{reorg $808799}
 	jml play_music_hook
@@ -2300,6 +2341,42 @@ play_music_hook:
 	// Return to play_music code.
 	jml $80879F
 
+
+// Fixed drop rate - always drop items.
+{savepc}
+	{reorg $84A37F}
+	jml drop_item_hook
+{loadpc}
+drop_item_hook:
+	// A and X are 8-bit.
+	// Check whether the hack is enabled.
+	pha
+	lda.l {sram_config_fixdrop}
+	bne .enabled
+	pla
+	// Run deleted code, and return.
+	asl
+	asl
+	asl
+	dec
+	jml $84A383
+.enabled:
+	pla
+	// This is basically the same as the original code, but with our own
+	// custom single drop table.
+	ldx.b #$FF
+	jsl {rom_rng_next}
+.drop_chance_loop:
+	inx
+	sec
+	sbc.l .drop_table, x
+	bcs .drop_chance_loop
+	// Return to the rest of the drop code.
+	jml $84A38F
+.drop_table:
+	// This drop table, but scaled up to remove the no-drop case.
+	//db $9E,$20,$20,$10,$10,$02,$00,$00
+	db  0, 83, 83, 42, 42,  6,  0,  0
 
 // The state table for each level is in statetable.asm.
 incsrc "statetable.asm"
