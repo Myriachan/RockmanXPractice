@@ -17,7 +17,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 
 // Version tags
 eval version_major 2
-eval version_minor 2
+eval version_minor 3
 eval version_revision 0
 // Constants
 eval stage_intro 0
@@ -28,8 +28,8 @@ eval stage_sigma4 12
 eval game_config_size $17
 eval magic_sram_tag_lo $4143  // Combined, these say "CATS"
 eval magic_sram_tag_hi $5354
-eval magic_config_tag_lo $4643  // Combined, these say "CFG3"
-eval magic_config_tag_hi $3347
+eval magic_config_tag_lo $4643  // Combined, these say "CFG4"
+eval magic_config_tag_hi $3447
 // RAM addresses
 eval title_screen_option $7E003C
 eval controller_1_current $7E00A7
@@ -105,7 +105,8 @@ eval sram_config_keeprng {sram_config_extra} + 3
 eval sram_config_musicoff {sram_config_extra} + 4
 eval sram_config_godmode {sram_config_extra} + 5
 eval sram_config_fixdrop {sram_config_extra} + 6
-eval sram_config_extra_size 7   // adjust this as more are added
+eval sram_config_delay {sram_config_extra} + 7
+eval sram_config_extra_size 8   // adjust this as more are added
 eval sram_size $080000
 
 
@@ -629,10 +630,10 @@ config_screen_moves:
 	dw $1382 >> 1
 	// EXIT (normal)
 	{reorg $8695F2}
-	dw $15AC >> 1
+	dw $15EC >> 1
 	// EXIT (highlighted)
 	{reorg $8695FB}
-	dw $15AC >> 1
+	dw $15EC >> 1
 	// BGM (normal)
 	{reorg $869604}
 	dw $1642 >> 1
@@ -805,6 +806,12 @@ string_option_titles:
 	{option_string string_fixdrop_on, "ON ", $14F6, $20, 1}
 	{option_string string_fixdrop_off, "OFF", $14F6, $20, 1}
 
+	{option_string_pair string_delay, "DELAY", $1524}
+	{option_string string_delay_00f, "00 F", $1536, $20, 1}
+	{option_string string_delay_30f, "30 F", $1536, $20, 1}
+	{option_string string_delay_60f, "60 F", $1536, $20, 1}
+	{option_string string_delay_90f, "90 F", $1536, $20, 1}
+
 // I'm too lazy to rework the compressed font, so I use this to overwrite
 // the ` character in VRAM.  The field used for the "attribute" of the
 // "text" just becomes the high byte of each pair of bytes.
@@ -883,6 +890,12 @@ string_table:
 	{stringtableentry fixdrop_highlighted}
 	{stringtableentry fixdrop_off}
 	{stringtableentry fixdrop_on}
+	{stringtableentry delay_normal}
+	{stringtableentry delay_highlighted}
+	{stringtableentry delay_00f}
+	{stringtableentry delay_30f}
+	{stringtableentry delay_60f}
+	{stringtableentry delay_90f}
 {loadpc}
 
 
@@ -943,6 +956,7 @@ config_menu_extra_string_table:
 	db $00  // flush
 	db {stringid_category_normal}
 	db {stringid_fixdrop_normal}
+	db {stringid_delay_normal}
 	db $FF
 	dw config_get_stringid_route1_label
 	db $FF
@@ -967,6 +981,8 @@ config_menu_extra_string_table:
 	dw config_get_stringid_godmode
 	db $FF
 	dw config_get_stringid_fixdrop
+	db $FF
+	dw config_get_stringid_delay
 	// We return to a flush call.
 .end:
 
@@ -1084,6 +1100,12 @@ config_get_stringid_fixdrop:
 	adc.b #{stringid_fixdrop_off}
 	rts
 
+config_get_stringid_delay:
+	lda.l {sram_config_delay}
+	and.b #$03
+	adc.b #{stringid_delay_00f}
+	rts
+
 
 // Mapping from config option ID to unhighlighted string ID.
 // Used for drawing the blue text when unhighlighting the previous option.
@@ -1118,6 +1140,7 @@ config_unhighlighted_stringids:
 	db {stringid_keeprng_normal}
 	db {stringid_godmode_normal}
 	db {stringid_fixdrop_normal}
+	db {stringid_delay_normal}
 	db $27   // EXIT
 .end:
 // Routine to look up the "unhighlighted" string ID.
@@ -1215,6 +1238,7 @@ config_option_jump_table:
 	dl config_code_keeprng - 1
 	dl config_code_godmode - 1
 	dl config_code_fixdrop - 1
+	dl config_code_delay - 1
 	dl {rom_config_exit} - 1
 .end:
 
@@ -1396,52 +1420,85 @@ config_code_route2:
 
 // Config code for simple toggles.
 config_code_musicoff:
+	lda.b #2
 	ldx.b #{sram_config_musicoff} - {sram_config_extra}
 	ldy.b #{stringid_music_on}
 	bra config_extra_toggle
 
 config_code_midpoint:
+	lda.b #2
 	ldx.b #{sram_config_midpointsoff} - {sram_config_extra}
 	ldy.b #{stringid_midpoints_on}
 	bra config_extra_toggle
 
 config_code_keeprng:
+	lda.b #2
 	ldx.b #{sram_config_keeprng} - {sram_config_extra}
 	ldy.b #{stringid_keeprng_off}
 	bra config_extra_toggle
 
 config_code_godmode:
+	lda.b #2
 	ldx.b #{sram_config_godmode} - {sram_config_extra}
 	ldy.b #{stringid_godmode_off}
 	bra config_extra_toggle
 
 config_code_fixdrop:
+	lda.b #2
 	ldx.b #{sram_config_fixdrop} - {sram_config_extra}
 	ldy.b #{stringid_fixdrop_off}
 	bra config_extra_toggle
 
-// Shared routines for simple toggles.
-// X = index into sram_config_extra
+config_code_delay:
+	lda.b #4
+	ldx.b #{sram_config_delay} - {sram_config_extra}
+	ldy.b #{stringid_delay_00f}
+	bra config_extra_toggle
+
+// Shared routines for simple selections.
+// A = number of options available.
+// X = index into sram_config_extra.
 // Y = string ID of default (zero) option.
 config_extra_toggle:
 //	jsl trampoline_808862
+	// Save A to give us room to work.
+	pha
 	// Was left or right pressed?
 	lda.b {controller_1_new} + 1
 	and.b #$03
 	beq .no_change
-	// Toggle the flag.
+	cmp.b #$03
+	beq .no_change
+	// Determine left versus right.
+	lsr
 	lda.l {sram_config_extra}, x
-	and.b #$01
-	eor.b #$01
+	bcc .left
+.right:
+	// Increment the setting.
+	inc
+	cmp 1, s
+	bcc .right_no_overflow
+	lda.b #0
+.right_no_overflow:
+	bra .left_no_underflow
+.left:
+	// Decrement the setting.
+	dec
+	bpl .left_no_underflow
+	lda 1, s
+	dec
+.left_no_underflow:
+	// Save the setting.
 	sta.l {sram_config_extra}, x
-	// Draw the new string.
-	beq .zero
-	iny
-.zero:
+	// Determine the string number by adding Y to A.
+	sta 1, s
 	tya
+	clc
+	adc 1, s
 .draw_string:
 	jsl trampoline_8089CA
 .no_change:
+	pla   // remove saved A
 	jsl trampoline_808100
 	jml {rom_config_loop}
 
@@ -1922,8 +1979,28 @@ nmi_hook:
 	// End of DMA from SRAM
 
 .load_dma_regs_done:
+	// Artificially delay resuming if requested by the user.
+	lda.b #0
+	xba
+	lda.l {sram_config_delay}
+	tax
+	lda.l .frame_delay_table, x
+	tax
+.frame_delay_loop:
+	cpx.w #0
+	beq .frame_delay_done
+	lda.w $4210
+	bpl .frame_delay_loop
+	dex
+	bra .frame_delay_loop
+.frame_delay_done:
+
 	// Restore registers and return.
 	jmp .register_restore_return
+
+.frame_delay_table:
+	// Number of frames to delay for each sram_config_delay setting
+	db 0, 30, 60, 90
 
 
 .vm:
