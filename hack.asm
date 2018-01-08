@@ -2,13 +2,28 @@ arch snes.cpu
 
 // LoROM org macro - see bass's snes-cpu.asm "seek" macro
 macro reorg n
-	org (({n} & 0x7f0000) >> 1) | ({n} & 0x7fff)
+	org ((({n}) & 0x7f0000) >> 1) | (({n}) & 0x7fff)
 	base {n}
 endmacro
 
-// Allows going back and forth
+// Warn if the current address is greater than the specified value.
+macro warnpc n
+	{#}:
+	if {#} > {n}
+		warning "warnpc assertion failure"
+	endif
+endmacro
+
+// Allows saving the current location and seeking somewhere else.
 define savepc push origin, base
 define loadpc pull base, origin
+
+// Warn if the expression is false.
+macro static_assert n
+	if ({n}) == 0
+		warning "static assertion failure"
+	endif
+endmacro
 
 // Copy the original ROM
 {reorg $808000}
@@ -18,7 +33,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 2
 eval version_minor 3
-eval version_revision 0
+eval version_revision 1
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -77,7 +92,14 @@ eval rom_config_bgm $80EC30
 eval rom_config_se $80EC74
 eval rom_config_exit $80ECC0
 eval rom_rng_next $849086
+eval rom_string_table $86910B
+eval rom_string_table_unused $869193  // first unused string in rom_string_table
+eval rom_string_table_end $8691F5  // one past the end of rom_string_table
 eval rom_default_config $86EE23
+eval rom_bank84_string_table $84FF00  // where to put the master string table (free space in ROM)
+eval rom_bank84_string_table_max $850000  // warn if table goes past here
+// Constants derived from ROM addresses
+eval num_used_string_table ({rom_string_table_unused} - {rom_string_table}) / 2
 // SRAM addresses for saved states
 eval sram_start $700000
 eval sram_wram_7E0000 $710000
@@ -496,6 +518,7 @@ escape_u_hack:
 {loadpc}
 
 
+// *** START OF BANK 80 HACKS ***
 // Added code/data
 {reorg $80FBD0}
 
@@ -589,6 +612,47 @@ palette_multiply_hack:
 	rts
 
 
+// Hack draw_string to use our custom table.
+{savepc}
+	{reorg $8089CA}
+	jmp draw_string_hack
+{loadpc}
+draw_string_hack:
+	// This assumes that bank doesn't change.
+	{warnpc $80FFFF}
+	// Overwritten code
+	sep #$30
+	sta.b $02
+	and.b #$7F    // might change this if we need more than 127 strings
+	asl
+	tay
+	// Is this one of our extra strings?
+	cpy.b #{num_used_string_table} * 2
+	bcc .old_table
+	// Switch to the other bank.
+	phb
+	pea ({rom_bank84_string_table} >> 16) * $0101
+	plb
+	plb
+	// Refer to the new table instead.
+	lda {rom_bank84_string_table} - ({num_used_string_table} * 2), y
+	sta.b $10
+	lda {rom_bank84_string_table} - ({num_used_string_table} * 2) + 1, y
+	sta.b $11
+	// Return to original code.
+	plb
+	jmp $8089DC
+.old_table:
+	// Use the original code.
+	jmp $8089D2
+
+
+// Warn if the above code overflows the area we have it.
+{warnpc $80FF80}
+// *** END OF BANK 80 HACKS ***
+
+
+// *** START OF BANK 86 HACKS ***
 // Added data that must be in bank $86.
 {reorg $86FA60}
 
@@ -835,14 +899,12 @@ string_percent_sign_bitmap:
 
 // New additions to string table.  This table has reserved entries not being used.
 {savepc}
-	// Table starts here in reality.
-	{reorg $86910B}
+	{reorg {rom_bank84_string_table}}
 string_table:
-	{reorg $869193}
 	macro stringtableentry label
 		.idcalc_{label}:
 			dw (string_{label}) & $FFFF
-		eval stringid_{label} (string_table.idcalc_{label} - string_table) / 2
+		eval stringid_{label} ((string_table.idcalc_{label} - string_table) / 2) + {num_used_string_table}
 	endmacro
 
 	{stringtableentry percent_sign_bitmap}
@@ -896,6 +958,7 @@ string_table:
 	{stringtableentry delay_30f}
 	{stringtableentry delay_60f}
 	{stringtableentry delay_90f}
+	{warnpc {rom_bank84_string_table_max}}
 {loadpc}
 
 
@@ -1503,6 +1566,11 @@ config_extra_toggle:
 	jml {rom_config_loop}
 
 
+// Warn if we go past the end of bank 86.
+{warnpc $870000}
+// *** END OF BANK 86 HACKS ***
+
+
 //
 // Saved state hacks
 //
@@ -1557,7 +1625,10 @@ nmi_patch:
 	bra {rom_nmi_after_controller}
 {loadpc}
 
+
+// *** START OF BANK 84 HACKS ***
 {reorg $84EE00}
+
 // Called at program startup.
 init_hook:
 	// Deleted code.
@@ -2454,6 +2525,11 @@ drop_item_hook:
 	// This drop table, but scaled up to remove the no-drop case.
 	//db $9E,$20,$20,$10,$10,$02,$00,$00
 	db  0, 83, 83, 42, 42,  6,  0,  0
+
+// Warn if we collide into the string table.
+{warnpc {rom_bank84_string_table}}
+// *** END OF BANK 84 HACKS ***
+
 
 // The state table for each level is in statetable.asm.
 incsrc "statetable.asm"

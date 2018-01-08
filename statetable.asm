@@ -14,6 +14,8 @@
 // Iceless and Iceful routes have the same four bosses defeated and the same
 // items collected.
 
+
+// *** START OF BANK AF HACKS ***
 // Where the state table area starts.
 {reorg $AFEA00}
 
@@ -447,3 +449,6 @@ state_anyp_shared_sigma4:
 	db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$0C,$03,$C0,$03,$00,$00
 	db $03,$00,$01,$00,$00,$00,$00,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$00
 	db $DC,$00,$DC,$00,$DC,$00,$DC,$00,$DC,$0A,$10,$04,$00,$00,$00,$00
+
+{warnpc $B00000}
+// *** END OF BANK AF HACKS ***
