@@ -414,7 +414,7 @@ patch_main_menu_text:
 	db $30 + {version_major}, '.', $30 + {version_minor}, $30 + {version_revision}
 	db "   "
 	{reorg $84CE4B}
-	db "2014-2017     "
+	db "2014-2018     "
 	{reorg $84CE5C}
 	db "Myria and Total"
 {loadpc}
