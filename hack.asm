@@ -33,7 +33,7 @@ incbin "Rockman X (J) (V1.0) [!].smc"
 // Version tags
 eval version_major 2
 eval version_minor 3
-eval version_revision 1
+eval version_revision 2
 // Constants
 eval stage_intro 0
 eval stage_sigma1 9
@@ -1371,7 +1371,7 @@ config_code_category:
 	bne .draw_loop
 	// Done.
 .no_change:
-	jmp config_extra_toggle.no_change
+	jmp config_helpers.no_change
 .string_list:
 	// String IDs for switching to 100%.
 	db {stringid_100percent}
@@ -1408,9 +1408,9 @@ config_code_route1:
 .draw_string_route1:
 	jsr config_get_stringid_route1
 .draw_string:
-	jmp config_extra_toggle.draw_string
+	jmp config_helpers.draw_string
 .no_change:
-	jmp config_extra_toggle.no_change
+	jmp config_helpers.no_change
 .anypercent:
 	// Any% case.
 	// Was left or right pressed?
@@ -1562,6 +1562,14 @@ config_extra_toggle:
 	jsl trampoline_8089CA
 .no_change:
 	pla   // remove saved A
+	jsl trampoline_808100
+	jml {rom_config_loop}
+
+// Helper pieces of code for config routines.
+config_helpers:
+.draw_string:
+	jsl trampoline_8089CA
+.no_change:
 	jsl trampoline_808100
 	jml {rom_config_loop}
 
